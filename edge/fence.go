@@ -27,18 +27,18 @@ func (r Rect) Center() (float64, float64) {
 type Zone int
 
 const (
-	Inside Zone = iota
-	Warning
-	Outside
+	ZoneInside Zone = iota
+	ZoneWarning
+	ZoneOutside
 )
 
 func (z Zone) String() string {
 	switch z {
-	case Inside:
+	case ZoneInside:
 		return "inside"
-	case Warning:
+	case ZoneWarning:
 		return "warning"
-	case Outside:
+	case ZoneOutside:
 		return "outside"
 	default:
 		return "unknown"
@@ -48,11 +48,11 @@ func (z Zone) String() string {
 func (r Rect) Evaluate(x, y, warnM float64) Zone {
 	d := r.DistanceToEdge(x, y)
 	if d < 0 {
-		return Outside
+		return ZoneOutside
 	}
 	if d <= warnM {
-		return Warning
+		return ZoneWarning
 	}
 
-	return Inside
+	return ZoneInside
 }
