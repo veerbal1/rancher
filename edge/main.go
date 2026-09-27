@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	numSims = 3
-	numCows = 5
+	numSims = 2
+	numCows = 20
 )
 
 type Sim struct {
