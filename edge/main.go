@@ -42,11 +42,7 @@ func main() {
 	}
 
 	events := make(chan Event, 100)
-	go func() {
-		for e := range events {
-			fmt.Printf("%+v\n", e)
-		}
-	}()
+	go Tower(events)
 
 	for {
 		now := time.Now()
