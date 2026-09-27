@@ -3,10 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 )
 
 const (
@@ -35,6 +39,12 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	cfg, err := config.LoadDefaultConfig(context.Background())
+	if err != nil {
+		log.Fatalf("aws config: %v", err)
+	}
+	client := kinesis.NewFromConfig(cfg)
+
 	fence := Rect{MinX: 0, MinY: 0, MaxX: 100, MaxY: 100}
 
 	sims := make([]*Sim, 0, numSims)
@@ -51,7 +61,7 @@ func main() {
 	events := make(chan Event, 100)
 	done := make(chan struct{})
 	go func() {
-		Tower(events)
+		Tower(events, client)
 		close(done)
 	}()
 
