@@ -13,6 +13,18 @@ const (
 type Sim struct {
 	ID      string
 	Collars []*Collar
+	seq     uint64
+}
+
+type Event struct {
+	SimID string
+	Seq   uint64
+	Time  time.Time
+	CowID string
+	X     float64
+	Y     float64
+	State State
+	Level Cue
 }
 
 func main() {
@@ -23,22 +35,36 @@ func main() {
 		sim := &Sim{ID: fmt.Sprintf("sim-%d", s+1)}
 		for i := 0; i < numCows; i++ {
 			id := fmt.Sprintf("cow-%d", i+1)
-			c := NewCow(id, 80+float64(i)*5, 50, int64(s*numCows+i+1))
+			c := NewCow(id, 50+float64(i)*5, 50, int64(s*numCows+i+1))
 			sim.Collars = append(sim.Collars, NewCollar(c, fence, 10))
 		}
 		sims = append(sims, sim)
 	}
 
-	for tick := 1; ; tick++ {
+	events := make(chan Event, 100)
+	go func() {
+		for e := range events {
+			fmt.Printf("%+v\n", e)
+		}
+	}()
+
+	for {
+		now := time.Now()
 		for _, sim := range sims {
 			for _, col := range sim.Collars {
 				col.Step(1)
+				sim.seq++
+				events <- Event{
+					SimID: sim.ID,
+					Seq:   sim.seq,
+					Time:  now,
+					CowID: col.cow.ID,
+					X:     col.cow.X,
+					Y:     col.cow.Y,
+					State: col.State(),
+					Level: col.Level(),
+				}
 			}
-			fmt.Printf("%s tick %d:", sim.ID, tick)
-			for _, col := range sim.Collars {
-				fmt.Printf(" %s(%.1f,%.1f,%s:%s)", col.cow.ID, col.cow.X, col.cow.Y, col.State(), col.Level())
-			}
-			fmt.Println()
 		}
 		time.Sleep(time.Second)
 	}
