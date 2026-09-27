@@ -21,14 +21,14 @@ type Sim struct {
 }
 
 type Event struct {
-	SimID string
-	Seq   uint64
-	Time  time.Time
-	CowID string
-	X     float64
-	Y     float64
-	State State
-	Level Cue
+	SimID string    `json:"sim_id"`
+	Seq   uint64    `json:"seq"`
+	Time  time.Time `json:"time"`
+	CowID string    `json:"cow_id"`
+	X     float64   `json:"x"`
+	Y     float64   `json:"y"`
+	State State     `json:"state"`
+	Level Cue       `json:"level"`
 }
 
 func main() {
