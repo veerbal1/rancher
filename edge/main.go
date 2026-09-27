@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -28,6 +32,9 @@ type Event struct {
 }
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	fence := Rect{MinX: 0, MinY: 0, MaxX: 100, MaxY: 100}
 
 	sims := make([]*Sim, 0, numSims)
@@ -42,9 +49,13 @@ func main() {
 	}
 
 	events := make(chan Event, 100)
-	go Tower(events)
+	done := make(chan struct{})
+	go func() {
+		Tower(events)
+		close(done)
+	}()
 
-	for {
+	for ctx.Err() == nil {
 		now := time.Now()
 		for _, sim := range sims {
 			for _, col := range sim.Collars {
@@ -62,6 +73,13 @@ func main() {
 				}
 			}
 		}
-		time.Sleep(time.Second)
+		select {
+		case <-ctx.Done():
+		case <-time.After(time.Second):
+		}
 	}
+
+	close(events)
+	<-done
+	fmt.Println("shutdown: all events drained")
 }
