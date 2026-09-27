@@ -143,3 +143,6 @@ func zoneToState(z Zone) State {
 		return Inside
 	}
 }
+
+func (s State) MarshalText() ([]byte, error) { return []byte(s.String()), nil }
+func (c Cue) MarshalText() ([]byte, error)   { return []byte(c.String()), nil }
