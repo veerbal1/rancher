@@ -56,6 +56,8 @@ func handle(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.API
 		return createPaddock(ctx, req.PathParameters["id"], req.Body)
 	case "GET /farmers/{id}/paddocks":
 		return listPaddocks(ctx, req.PathParameters["id"])
+	case "DELETE /farmers/{id}/paddocks/{paddockId}":
+		return deletePaddock(ctx, req.PathParameters["id"], req.PathParameters["paddockId"])
 	default:
 		return respond(http.StatusNotFound, errorBody("not found"))
 	}

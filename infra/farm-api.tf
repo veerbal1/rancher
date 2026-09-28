@@ -27,7 +27,7 @@ resource "aws_iam_role_policy" "farm_api_dynamodb" {
     Version = "2012-10-17"
     Statement = [{
       Effect   = "Allow"
-      Action   = ["dynamodb:PutItem", "dynamodb:Scan", "dynamodb:Query", "dynamodb:UpdateItem"]
+      Action   = ["dynamodb:PutItem", "dynamodb:Scan", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem"]
       Resource = aws_dynamodb_table.rancher.arn
     }]
   })
@@ -55,7 +55,7 @@ resource "aws_apigatewayv2_api" "farm" {
 
   cors_configuration {
     allow_origins = ["http://localhost:5173"]
-    allow_methods = ["GET", "POST"]
+    allow_methods = ["GET", "POST", "DELETE"]
     allow_headers = ["content-type"]
   }
 }
@@ -73,6 +73,7 @@ resource "aws_apigatewayv2_route" "farm_api" {
     "GET /farmers",
     "POST /farmers/{id}/paddocks",
     "GET /farmers/{id}/paddocks",
+    "DELETE /farmers/{id}/paddocks/{paddockId}",
   ])
 
   api_id    = aws_apigatewayv2_api.farm.id

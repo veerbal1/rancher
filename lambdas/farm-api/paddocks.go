@@ -131,6 +131,25 @@ func listPaddocks(ctx context.Context, farmerID string) (events.APIGatewayV2HTTP
 	return respond(http.StatusOK, paddocks)
 }
 
+func deletePaddock(ctx context.Context, farmerID, paddockID string) (events.APIGatewayV2HTTPResponse, error) {
+	_, err := db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+		TableName: aws.String(table),
+		Key: map[string]types.AttributeValue{
+			"PK": &types.AttributeValueMemberS{Value: "FARMER#" + farmerID},
+			"SK": &types.AttributeValueMemberS{Value: "PADDOCK#" + paddockID},
+		},
+		ConditionExpression: aws.String("attribute_exists(PK)"),
+	})
+	var notFound *types.ConditionalCheckFailedException
+	if errors.As(err, &notFound) {
+		return respond(http.StatusNotFound, errorBody("paddock not found"))
+	}
+	if err != nil {
+		return events.APIGatewayV2HTTPResponse{}, err
+	}
+	return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusNoContent}, nil
+}
+
 func validatePolygon(p Polygon) string {
 	if p.Type != "Polygon" || len(p.Coordinates) != 1 {
 		return "polygon must be a GeoJSON Polygon with one ring"
