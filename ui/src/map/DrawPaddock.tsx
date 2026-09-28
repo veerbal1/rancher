@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useMap } from '@vis.gl/react-maplibre'
-import { TerraDraw, TerraDrawPolygonMode } from 'terra-draw'
+import { TerraDraw, TerraDrawPolygonMode, ValidateNotSelfIntersecting } from 'terra-draw'
 import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter'
 import type { LngLat } from './geo'
 
@@ -19,6 +19,8 @@ export function DrawPaddock({ active, onFinish }: Props) {
       adapter: new TerraDrawMapLibreGLAdapter({ map: mapRef.getMap() }),
       modes: [
         new TerraDrawPolygonMode({
+          validation: (feature, { updateType }) =>
+            String(updateType) === 'provisional' ? { valid: true } : ValidateNotSelfIntersecting(feature),
           styles: {
             fillColor: '#2e9e5b',
             fillOpacity: 0.25,
