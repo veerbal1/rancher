@@ -105,6 +105,7 @@ func listPaddocks(ctx context.Context, farmerID string) (events.APIGatewayV2HTTP
 	paddocks := []Paddock{}
 	pages := dynamodb.NewQueryPaginator(db, &dynamodb.QueryInput{
 		TableName:              aws.String(table),
+		ConsistentRead:         aws.Bool(true),
 		KeyConditionExpression: aws.String("PK = :pk AND begins_with(SK, :prefix)"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":pk":     &types.AttributeValueMemberS{Value: "FARMER#" + farmerID},
@@ -185,6 +186,9 @@ func deletePaddock(ctx context.Context, farmerID, paddockID string) (events.APIG
 		return respond(http.StatusNotFound, errorBody("paddock not found"))
 	}
 	if err != nil {
+		return events.APIGatewayV2HTTPResponse{}, err
+	}
+	if err := unassignCollarsFromPaddock(ctx, farmerID, paddockID); err != nil {
 		return events.APIGatewayV2HTTPResponse{}, err
 	}
 	return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusNoContent}, nil

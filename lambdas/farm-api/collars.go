@@ -101,6 +101,7 @@ func listCollars(ctx context.Context, farmerID string) (events.APIGatewayV2HTTPR
 	collars := []Collar{}
 	pages := dynamodb.NewQueryPaginator(db, &dynamodb.QueryInput{
 		TableName:              aws.String(table),
+		ConsistentRead:         aws.Bool(true),
 		KeyConditionExpression: aws.String("PK = :pk AND begins_with(SK, :prefix)"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":pk":     &types.AttributeValueMemberS{Value: "FARMER#" + farmerID},
@@ -121,4 +122,106 @@ func listCollars(ctx context.Context, farmerID string) (events.APIGatewayV2HTTPR
 
 	sort.Slice(collars, func(i, j int) bool { return collars[i].Number < collars[j].Number })
 	return respond(http.StatusOK, collars)
+}
+
+const maxCollarsPerAssign = 100
+
+func assignCollars(ctx context.Context, farmerID, body string) (events.APIGatewayV2HTTPResponse, error) {
+	var in struct {
+		CollarIDs []string `json:"collar_ids"`
+		PaddockID *string  `json:"paddock_id"`
+	}
+	if err := json.Unmarshal([]byte(body), &in); err != nil {
+		return respond(http.StatusBadRequest, errorBody("invalid JSON"))
+	}
+	ids := unique(in.CollarIDs)
+	if len(ids) == 0 || len(ids) > maxCollarsPerAssign {
+		return respond(http.StatusBadRequest, errorBody(fmt.Sprintf("collar_ids must have 1-%d ids", maxCollarsPerAssign)))
+	}
+
+	var value types.AttributeValue = &types.AttributeValueMemberNULL{Value: true}
+	if in.PaddockID != nil {
+		out, err := db.GetItem(ctx, &dynamodb.GetItemInput{
+			TableName: aws.String(table),
+			Key: map[string]types.AttributeValue{
+				"PK": &types.AttributeValueMemberS{Value: "FARMER#" + farmerID},
+				"SK": &types.AttributeValueMemberS{Value: "PADDOCK#" + *in.PaddockID},
+			},
+			ProjectionExpression: aws.String("PK"),
+		})
+		if err != nil {
+			return events.APIGatewayV2HTTPResponse{}, err
+		}
+		if out.Item == nil {
+			return respond(http.StatusNotFound, errorBody("paddock not found"))
+		}
+		value = &types.AttributeValueMemberS{Value: *in.PaddockID}
+	}
+
+	updates := make([]types.TransactWriteItem, 0, len(ids))
+	for _, id := range ids {
+		updates = append(updates, types.TransactWriteItem{Update: &types.Update{
+			TableName: aws.String(table),
+			Key: map[string]types.AttributeValue{
+				"PK": &types.AttributeValueMemberS{Value: "FARMER#" + farmerID},
+				"SK": &types.AttributeValueMemberS{Value: "COLLAR#" + id},
+			},
+			UpdateExpression:          aws.String("SET paddock_id = :p"),
+			ConditionExpression:       aws.String("attribute_exists(PK)"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{":p": value},
+		}})
+	}
+	_, err := db.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: updates})
+	var cancelled *types.TransactionCanceledException
+	if errors.As(err, &cancelled) {
+		return respond(http.StatusNotFound, errorBody("one or more collars not found"))
+	}
+	if err != nil {
+		return events.APIGatewayV2HTTPResponse{}, err
+	}
+	return respond(http.StatusOK, map[string]any{"collar_ids": ids, "paddock_id": in.PaddockID})
+}
+
+func unassignCollarsFromPaddock(ctx context.Context, farmerID, paddockID string) error {
+	pages := dynamodb.NewQueryPaginator(db, &dynamodb.QueryInput{
+		TableName:              aws.String(table),
+		ConsistentRead:         aws.Bool(true),
+		KeyConditionExpression: aws.String("PK = :pk AND begins_with(SK, :prefix)"),
+		FilterExpression:       aws.String("paddock_id = :pid"),
+		ProjectionExpression:   aws.String("SK"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":pk":     &types.AttributeValueMemberS{Value: "FARMER#" + farmerID},
+			":prefix": &types.AttributeValueMemberS{Value: "COLLAR#"},
+			":pid":    &types.AttributeValueMemberS{Value: paddockID},
+		},
+	})
+	for pages.HasMorePages() {
+		page, err := pages.NextPage(ctx)
+		if err != nil {
+			return err
+		}
+		for _, item := range page.Items {
+			if _, err := db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+				TableName:                 aws.String(table),
+				Key:                       map[string]types.AttributeValue{"PK": &types.AttributeValueMemberS{Value: "FARMER#" + farmerID}, "SK": item["SK"]},
+				UpdateExpression:          aws.String("SET paddock_id = :null"),
+				ExpressionAttributeValues: map[string]types.AttributeValue{":null": &types.AttributeValueMemberNULL{Value: true}},
+			}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func unique(ids []string) []string {
+	seen := make(map[string]bool, len(ids))
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id != "" && !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out
 }

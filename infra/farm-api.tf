@@ -27,7 +27,7 @@ resource "aws_iam_role_policy" "farm_api_dynamodb" {
     Version = "2012-10-17"
     Statement = [{
       Effect   = "Allow"
-      Action   = ["dynamodb:PutItem", "dynamodb:Scan", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem"]
+      Action   = ["dynamodb:PutItem", "dynamodb:Scan", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:GetItem"]
       Resource = aws_dynamodb_table.rancher.arn
     }]
   })
@@ -77,6 +77,7 @@ resource "aws_apigatewayv2_route" "farm_api" {
     "DELETE /farmers/{id}/paddocks/{paddockId}",
     "POST /farmers/{id}/collars",
     "GET /farmers/{id}/collars",
+    "PATCH /farmers/{id}/collars",
   ])
 
   api_id    = aws_apigatewayv2_api.farm.id
