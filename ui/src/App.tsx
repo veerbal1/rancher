@@ -1,4 +1,6 @@
 import { useCallback, useState } from 'react'
+import { toast } from 'sonner'
+import { Toaster } from '@/components/ui/sonner'
 import { SatelliteMap } from './map/SatelliteMap'
 import { CowsLayer } from './map/CowsLayer'
 import { DrawPaddock } from './map/DrawPaddock'
@@ -36,6 +38,7 @@ function App() {
   const handleCreateFarmer = async (name: string) => {
     const farmer = await createFarmer(name)
     selectFarmer(farmer.id)
+    toast.success(`Farmer ${farmer.name} created`)
   }
 
   const handlePaddockDrawn = useCallback((ring: LngLat[]) => {
@@ -50,8 +53,9 @@ function App() {
 
   const saveDraftPaddock = async () => {
     if (!draftRing) return
-    await createPaddock(draftRing)
+    const paddock = await createPaddock(draftRing)
     setDraftRing(null)
+    toast.success(`${paddock.name} saved`, { description: `${paddock.area_ha} ha` })
   }
 
   return (
@@ -88,6 +92,8 @@ function App() {
           onSaveDraft={saveDraftPaddock}
         />
       </MenuPanel>
+
+      <Toaster theme="light" position="top-center" />
     </main>
   )
 }
