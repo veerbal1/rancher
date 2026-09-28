@@ -52,7 +52,7 @@ func main() {
 		sim := &Sim{ID: fmt.Sprintf("sim-%d", s+1)}
 		for i := 0; i < numCows; i++ {
 			id := fmt.Sprintf("cow-%d", i+1)
-			c := NewCow(id, 50+float64(i)*5, 50, int64(s*numCows+i+1))
+			c := NewCow(id, 20+float64(i%10)*6, 35+float64(i/10)*30, int64(s*numCows+i+1))
 			sim.Collars = append(sim.Collars, NewCollar(c, fence, 10))
 		}
 		sims = append(sims, sim)
