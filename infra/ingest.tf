@@ -29,6 +29,11 @@ resource "aws_lambda_function" "ingest" {
   architectures    = ["arm64"]
   filename         = data.archive_file.ingest.output_path
   source_code_hash = data.archive_file.ingest.output_base64sha256
+  environment {
+    variables = {
+      TABLE_NAME = aws_dynamodb_table.cow_positions.name
+    }
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "ingest_kinesis" {
@@ -42,4 +47,33 @@ resource "aws_lambda_event_source_mapping" "ingest" {
   starting_position = "LATEST"
 
   depends_on = [aws_iam_role_policy_attachment.ingest_kinesis]
+}
+
+resource "aws_dynamodb_table" "cow_positions" {
+  name         = "cow-positions"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "sim_id"
+  range_key    = "cow_id"
+
+  attribute {
+    name = "sim_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "cow_id"
+    type = "S"
+  }
+}
+
+resource "aws_iam_role_policy" "ingest_dynamodb" {
+  role = aws_iam_role.ingest.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "dynamodb:PutItem"
+      Resource = aws_dynamodb_table.cow_positions.arn
+    }]
+  })
 }
