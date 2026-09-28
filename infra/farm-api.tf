@@ -55,7 +55,7 @@ resource "aws_apigatewayv2_api" "farm" {
 
   cors_configuration {
     allow_origins = ["http://localhost:5173"]
-    allow_methods = ["GET", "POST", "DELETE"]
+    allow_methods = ["GET", "POST", "PATCH", "DELETE"]
     allow_headers = ["content-type"]
   }
 }
@@ -73,6 +73,7 @@ resource "aws_apigatewayv2_route" "farm_api" {
     "GET /farmers",
     "POST /farmers/{id}/paddocks",
     "GET /farmers/{id}/paddocks",
+    "PATCH /farmers/{id}/paddocks/{paddockId}",
     "DELETE /farmers/{id}/paddocks/{paddockId}",
   ])
 

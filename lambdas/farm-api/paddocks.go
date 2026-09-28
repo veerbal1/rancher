@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -129,6 +130,45 @@ func listPaddocks(ctx context.Context, farmerID string) (events.APIGatewayV2HTTP
 		return paddocks[i].Name < paddocks[j].Name
 	})
 	return respond(http.StatusOK, paddocks)
+}
+
+func renamePaddock(ctx context.Context, farmerID, paddockID, body string) (events.APIGatewayV2HTTPResponse, error) {
+	var in struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal([]byte(body), &in); err != nil {
+		return respond(http.StatusBadRequest, errorBody("invalid JSON"))
+	}
+	name := strings.TrimSpace(in.Name)
+	if name == "" || len(name) > 60 {
+		return respond(http.StatusBadRequest, errorBody("name must be 1-60 characters"))
+	}
+
+	out, err := db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName: aws.String(table),
+		Key: map[string]types.AttributeValue{
+			"PK": &types.AttributeValueMemberS{Value: "FARMER#" + farmerID},
+			"SK": &types.AttributeValueMemberS{Value: "PADDOCK#" + paddockID},
+		},
+		UpdateExpression:          aws.String("SET #name = :name"),
+		ConditionExpression:       aws.String("attribute_exists(PK)"),
+		ExpressionAttributeNames:  map[string]string{"#name": "name"},
+		ExpressionAttributeValues: map[string]types.AttributeValue{":name": &types.AttributeValueMemberS{Value: name}},
+		ReturnValues:              types.ReturnValueAllNew,
+	})
+	var notFound *types.ConditionalCheckFailedException
+	if errors.As(err, &notFound) {
+		return respond(http.StatusNotFound, errorBody("paddock not found"))
+	}
+	if err != nil {
+		return events.APIGatewayV2HTTPResponse{}, err
+	}
+
+	var p Paddock
+	if err := attributevalue.UnmarshalMap(out.Attributes, &p); err != nil {
+		return events.APIGatewayV2HTTPResponse{}, err
+	}
+	return respond(http.StatusOK, p)
 }
 
 func deletePaddock(ctx context.Context, farmerID, paddockID string) (events.APIGatewayV2HTTPResponse, error) {
