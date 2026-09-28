@@ -113,7 +113,7 @@ function App() {
   return (
     <main style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0 }}>
       {error && (
-        <p style={{ position: 'absolute', top: 12, left: 12, zIndex: 1, padding: '6px 10px', borderRadius: 6, background: '#fff', color: '#d64545' }}>
+        <p style={{ position: 'absolute', top: 16, left: 80, zIndex: 1, padding: '6px 10px', borderRadius: 6, background: '#fff', color: '#d64545' }}>
           {error}
         </p>
       )}
@@ -129,6 +129,8 @@ function App() {
         <PaddockLabelsLayer selectedId={selectedPaddockId} />
         <DrawPaddock active={drawingPaddock} onFinish={handlePaddockDrawn} />
       </SatelliteMap>
+
+      <img src="/logo-96.png" alt="Rancher" className="fixed top-4 left-4 z-10 size-12 rounded-2xl shadow-lg" />
 
       <MenuPanel>
         <FarmersSection
