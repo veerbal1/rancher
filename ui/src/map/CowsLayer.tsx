@@ -10,7 +10,6 @@ const COLORS: Record<string, string> = {
   breached: '#d64545',
 }
 
-// Draws one dot per cow, coloured by fence state. New `cows` props move the dots.
 export function CowsLayer({ cows }: { cows: Cow[] }) {
   const points = useMemo<FeatureCollection<Point>>(
     () => ({

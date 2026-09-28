@@ -2,7 +2,6 @@ import { Source, Layer } from '@vis.gl/react-maplibre'
 import type { FeatureCollection, LineString } from 'geojson'
 import { square } from './geo'
 
-// The sim's fixed fence: 0..100 m, with the warning zone starting 10 m inside.
 const FENCE: FeatureCollection<LineString> = {
   type: 'FeatureCollection',
   features: [

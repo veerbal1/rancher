@@ -13,9 +13,6 @@ export type Cow = {
 
 const API_URL = import.meta.env.VITE_API_URL
 
-// Polls the API every second for a farm's latest cow positions. This is the only
-// place that knows where cows come from, so swapping polling for a WebSocket later
-// changes this file and nothing else.
 export function useCows(farm: string) {
   const [cows, setCows] = useState<Cow[]>([])
   const [error, setError] = useState('')
