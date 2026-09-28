@@ -6,15 +6,21 @@ import { toLngLat, type LngLat } from './map/geo'
 import { useCows } from './useCows'
 import { MenuPanel } from './components/MenuPanel'
 import { FarmersSection, type Farmer } from './components/FarmersSection'
+import { SelectedFarmer } from './components/SelectedFarmer'
 
 const INITIAL_BOUNDS: [LngLat, LngLat] = [toLngLat(-40, -40), toLngLat(140, 140)]
 
 function App() {
   const { cows, error } = useCows('sim-1')
   const [farmers, setFarmers] = useState<Farmer[]>([])
+  const [selectedFarmerId, setSelectedFarmerId] = useState<string | null>(null)
+
+  const selectedFarmer = farmers.find((f) => f.id === selectedFarmerId)
 
   const createFarmer = (name: string) => {
-    setFarmers((prev) => [...prev, { id: crypto.randomUUID(), name }])
+    const farmer = { id: crypto.randomUUID(), name }
+    setFarmers((prev) => [...prev, farmer])
+    setSelectedFarmerId(farmer.id)
   }
 
   return (
@@ -31,7 +37,13 @@ function App() {
       </SatelliteMap>
 
       <MenuPanel>
-        <FarmersSection farmers={farmers} onCreate={createFarmer} />
+        <FarmersSection
+          farmers={farmers}
+          selectedId={selectedFarmerId}
+          onSelect={setSelectedFarmerId}
+          onCreate={createFarmer}
+        />
+        {selectedFarmer && <SelectedFarmer farmer={selectedFarmer} />}
       </MenuPanel>
     </main>
   )
