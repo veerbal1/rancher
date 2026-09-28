@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useMap, type MapLayerMouseEvent } from '@vis.gl/react-maplibre'
 import { Toaster } from '@/components/ui/sonner'
@@ -9,6 +9,7 @@ import { DraftPaddockLayer } from './map/DraftPaddockLayer'
 import { PaddocksLayer } from './map/PaddocksLayer'
 import { PaddockLabelsLayer } from './map/PaddockLabelsLayer'
 import { toLngLat, type LngLat } from './map/geo'
+import { findOverlaps } from './map/overlap'
 import { useCows } from './useCows'
 import { useFarmers, type Location } from './useFarmers'
 import { usePaddocks } from './usePaddocks'
@@ -32,6 +33,7 @@ function App() {
 
   const selectedFarmer = farmers.find((f) => f.id === selectedFarmerId)
   const selectedPaddock = paddocks.find((p) => p.id === selectedPaddockId)
+  const overlaps = useMemo(() => (draftRing ? findOverlaps(draftRing, paddocks) : []), [draftRing, paddocks])
 
   const error = cowsError || farmersError || paddocksError
 
@@ -127,6 +129,7 @@ function App() {
           canAdd={!!selectedFarmer}
           drawing={drawingPaddock}
           hasDraft={!!draftRing}
+          overlaps={overlaps}
           onStartDrawing={startDrawingPaddock}
           onCancelDrawing={() => setDrawingPaddock(false)}
           onDiscardDraft={() => setDraftRing(null)}

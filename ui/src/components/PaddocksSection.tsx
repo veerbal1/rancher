@@ -1,6 +1,12 @@
 import { useState } from 'react'
+import { TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Paddock } from '@/usePaddocks'
+import type { Overlap } from '@/map/overlap'
+
+function formatArea(m2: number) {
+  return m2 >= 100 ? `${(m2 / 10_000).toFixed(2)} ha` : `${Math.round(m2)} m²`
+}
 
 type Props = {
   paddocks: Paddock[]
@@ -9,6 +15,7 @@ type Props = {
   canAdd: boolean
   drawing: boolean
   hasDraft: boolean
+  overlaps: Overlap[]
   onStartDrawing: () => void
   onCancelDrawing: () => void
   onDiscardDraft: () => void
@@ -22,6 +29,7 @@ export function PaddocksSection({
   canAdd,
   drawing,
   hasDraft,
+  overlaps,
   onStartDrawing,
   onCancelDrawing,
   onDiscardDraft,
@@ -61,7 +69,7 @@ export function PaddocksSection({
               Discard
             </Button>
             <Button size="sm" className="cursor-pointer" disabled={saving} onClick={save}>
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? 'Saving…' : overlaps.length > 0 ? 'Save anyway' : 'Save'}
             </Button>
           </div>
         ) : (
@@ -77,6 +85,14 @@ export function PaddocksSection({
         </p>
       )}
       {hasDraft && <p className="text-sm text-muted-foreground">New paddock drawn.</p>}
+      {hasDraft && overlaps.length > 0 && (
+        <p className="flex gap-2 rounded-lg bg-amber-100/80 px-3 py-2 text-sm text-amber-900">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+          <span>
+            Overlaps {overlaps.map((o) => `${o.name} (${formatArea(o.areaM2)})`).join(', ')}.
+          </span>
+        </p>
+      )}
       {error && <p className="text-sm text-destructive">{error}</p>}
       {!canAdd && <p className="text-sm text-muted-foreground">Select a farmer to add paddocks.</p>}
 
