@@ -3,9 +3,11 @@ import { SatelliteMap } from './map/SatelliteMap'
 import { CowsLayer } from './map/CowsLayer'
 import { DrawPaddock } from './map/DrawPaddock'
 import { DraftPaddockLayer } from './map/DraftPaddockLayer'
+import { PaddocksLayer } from './map/PaddocksLayer'
 import { toLngLat, type LngLat } from './map/geo'
 import { useCows } from './useCows'
 import { useFarmers } from './useFarmers'
+import { usePaddocks } from './usePaddocks'
 import { MenuPanel } from './components/MenuPanel'
 import { FarmersSection } from './components/FarmersSection'
 import { SelectedFarmer } from './components/SelectedFarmer'
@@ -19,18 +21,24 @@ function App() {
   const [selectedFarmerId, setSelectedFarmerId] = useState<string | null>(null)
   const [drawingPaddock, setDrawingPaddock] = useState(false)
   const [draftRing, setDraftRing] = useState<LngLat[] | null>(null)
+  const { paddocks, error: paddocksError, createPaddock } = usePaddocks(selectedFarmerId)
 
   const selectedFarmer = farmers.find((f) => f.id === selectedFarmerId)
 
-  const error = cowsError || farmersError
+  const error = cowsError || farmersError || paddocksError
+
+  const selectFarmer = (id: string | null) => {
+    setSelectedFarmerId(id)
+    setDraftRing(null)
+    setDrawingPaddock(false)
+  }
 
   const handleCreateFarmer = async (name: string) => {
     const farmer = await createFarmer(name)
-    setSelectedFarmerId(farmer.id)
+    selectFarmer(farmer.id)
   }
 
   const handlePaddockDrawn = useCallback((ring: LngLat[]) => {
-    console.log('paddock polygon [lng, lat]:', ring)
     setDraftRing(ring)
     setDrawingPaddock(false)
   }, [])
@@ -38,6 +46,12 @@ function App() {
   const startDrawingPaddock = () => {
     setDraftRing(null)
     setDrawingPaddock(true)
+  }
+
+  const saveDraftPaddock = async () => {
+    if (!draftRing) return
+    await createPaddock(draftRing)
+    setDraftRing(null)
   }
 
   return (
@@ -49,8 +63,9 @@ function App() {
       )}
 
       <SatelliteMap initialBounds={INITIAL_BOUNDS}>
-        <CowsLayer cows={cows} />
+        <PaddocksLayer paddocks={paddocks} />
         {draftRing && <DraftPaddockLayer ring={draftRing} />}
+        <CowsLayer cows={cows} />
         <DrawPaddock active={drawingPaddock} onFinish={handlePaddockDrawn} />
       </SatelliteMap>
 
@@ -58,17 +73,19 @@ function App() {
         <FarmersSection
           farmers={farmers}
           selectedId={selectedFarmerId}
-          onSelect={setSelectedFarmerId}
+          onSelect={selectFarmer}
           onCreate={handleCreateFarmer}
         />
         {selectedFarmer && <SelectedFarmer farmer={selectedFarmer} />}
         <PaddocksSection
+          paddocks={paddocks}
           canAdd={!!selectedFarmer}
           drawing={drawingPaddock}
           hasDraft={!!draftRing}
           onStartDrawing={startDrawingPaddock}
           onCancelDrawing={() => setDrawingPaddock(false)}
           onDiscardDraft={() => setDraftRing(null)}
+          onSaveDraft={saveDraftPaddock}
         />
       </MenuPanel>
     </main>

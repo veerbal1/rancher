@@ -27,7 +27,7 @@ resource "aws_iam_role_policy" "farm_api_dynamodb" {
     Version = "2012-10-17"
     Statement = [{
       Effect   = "Allow"
-      Action   = ["dynamodb:PutItem", "dynamodb:Scan"]
+      Action   = ["dynamodb:PutItem", "dynamodb:Scan", "dynamodb:Query", "dynamodb:UpdateItem"]
       Resource = aws_dynamodb_table.rancher.arn
     }]
   })
@@ -71,6 +71,8 @@ resource "aws_apigatewayv2_route" "farm_api" {
   for_each = toset([
     "POST /farmers",
     "GET /farmers",
+    "POST /farmers/{id}/paddocks",
+    "GET /farmers/{id}/paddocks",
   ])
 
   api_id    = aws_apigatewayv2_api.farm.id
