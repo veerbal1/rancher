@@ -14,21 +14,36 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-export function CreateFarmerDialog({ onCreate }: { onCreate: (name: string) => void }) {
+export function CreateFarmerDialog({ onCreate }: { onCreate: (name: string) => Promise<void> }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
-  const submit = (e: FormEvent<HTMLFormElement>) => {
+  const changeOpen = (next: boolean) => {
+    setOpen(next)
+    if (!next) setError('')
+  }
+
+  const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const trimmed = name.trim()
     if (!trimmed) return
-    onCreate(trimmed)
-    setName('')
-    setOpen(false)
+    setSaving(true)
+    setError('')
+    try {
+      await onCreate(trimmed)
+      setName('')
+      setOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger
         render={
           <button
@@ -57,12 +72,13 @@ export function CreateFarmerDialog({ onCreate }: { onCreate: (name: string) => v
               placeholder="e.g. Aroha Farms"
               autoFocus
             />
+            {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
 
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
-            <Button type="submit" disabled={!name.trim()}>
-              Create
+            <Button type="submit" disabled={!name.trim() || saving}>
+              {saving ? 'Creating…' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

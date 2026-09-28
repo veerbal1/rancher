@@ -1,13 +1,12 @@
 import { CreateFarmerDialog } from './CreateFarmerDialog'
 import { FarmerSelect } from './FarmerSelect'
-
-export type Farmer = { id: string; name: string }
+import type { Farmer } from '@/useFarmers'
 
 type Props = {
   farmers: Farmer[]
   selectedId: string | null
   onSelect: (id: string | null) => void
-  onCreate: (name: string) => void
+  onCreate: (name: string) => Promise<void>
 }
 
 export function FarmersSection({ farmers, selectedId, onSelect, onCreate }: Props) {

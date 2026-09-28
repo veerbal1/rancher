@@ -4,22 +4,24 @@ import { FenceLayer } from './map/FenceLayer'
 import { CowsLayer } from './map/CowsLayer'
 import { toLngLat, type LngLat } from './map/geo'
 import { useCows } from './useCows'
+import { useFarmers } from './useFarmers'
 import { MenuPanel } from './components/MenuPanel'
-import { FarmersSection, type Farmer } from './components/FarmersSection'
+import { FarmersSection } from './components/FarmersSection'
 import { SelectedFarmer } from './components/SelectedFarmer'
 
 const INITIAL_BOUNDS: [LngLat, LngLat] = [toLngLat(-40, -40), toLngLat(140, 140)]
 
 function App() {
-  const { cows, error } = useCows('sim-1')
-  const [farmers, setFarmers] = useState<Farmer[]>([])
+  const { cows, error: cowsError } = useCows('sim-1')
+  const { farmers, error: farmersError, createFarmer } = useFarmers()
   const [selectedFarmerId, setSelectedFarmerId] = useState<string | null>(null)
 
   const selectedFarmer = farmers.find((f) => f.id === selectedFarmerId)
 
-  const createFarmer = (name: string) => {
-    const farmer = { id: crypto.randomUUID(), name }
-    setFarmers((prev) => [...prev, farmer])
+  const error = cowsError || farmersError
+
+  const handleCreateFarmer = async (name: string) => {
+    const farmer = await createFarmer(name)
     setSelectedFarmerId(farmer.id)
   }
 
@@ -41,7 +43,7 @@ function App() {
           farmers={farmers}
           selectedId={selectedFarmerId}
           onSelect={setSelectedFarmerId}
-          onCreate={createFarmer}
+          onCreate={handleCreateFarmer}
         />
         {selectedFarmer && <SelectedFarmer farmer={selectedFarmer} />}
       </MenuPanel>

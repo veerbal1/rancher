@@ -1,4 +1,4 @@
-import type { Farmer } from './FarmersSection'
+import type { Farmer } from '@/useFarmers'
 
 export function SelectedFarmer({ farmer }: { farmer: Farmer }) {
   return (
