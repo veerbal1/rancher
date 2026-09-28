@@ -207,7 +207,54 @@ func validatePolygon(p Polygon) string {
 	if first[0] != last[0] || first[1] != last[1] {
 		return "polygon ring must be closed"
 	}
+	if selfIntersects(ring) {
+		return "polygon edges must not cross"
+	}
 	return ""
+}
+
+func selfIntersects(ring [][]float64) bool {
+	edges := len(ring) - 1
+	for i := 0; i < edges; i++ {
+		for j := i + 2; j < edges; j++ {
+			if i == 0 && j == edges-1 {
+				continue
+			}
+			if segmentsIntersect(ring[i], ring[i+1], ring[j], ring[j+1]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func segmentsIntersect(p1, p2, q1, q2 []float64) bool {
+	o1, o2 := orientation(p1, p2, q1), orientation(p1, p2, q2)
+	o3, o4 := orientation(q1, q2, p1), orientation(q1, q2, p2)
+	if o1 != o2 && o3 != o4 {
+		return true
+	}
+	return (o1 == 0 && onSegment(p1, q1, p2)) ||
+		(o2 == 0 && onSegment(p1, q2, p2)) ||
+		(o3 == 0 && onSegment(q1, p1, q2)) ||
+		(o4 == 0 && onSegment(q1, p2, q2))
+}
+
+func orientation(a, b, c []float64) int {
+	v := (b[0]-a[0])*(c[1]-a[1]) - (b[1]-a[1])*(c[0]-a[0])
+	switch {
+	case v > 0:
+		return 1
+	case v < 0:
+		return -1
+	default:
+		return 0
+	}
+}
+
+func onSegment(a, p, b []float64) bool {
+	return math.Min(a[0], b[0]) <= p[0] && p[0] <= math.Max(a[0], b[0]) &&
+		math.Min(a[1], b[1]) <= p[1] && p[1] <= math.Max(a[1], b[1])
 }
 
 func areaHa(ring [][]float64) float64 {
