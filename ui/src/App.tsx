@@ -96,14 +96,18 @@ function App() {
   )
 
   return (
-    <main>
-      <h1>sim-1: {cows.length} cows</h1>
-      {error && <p>{error}</p>}
+    <main style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0 }}>
+      {error && (
+        // overlay, so an error doesn't push the map down
+        <p style={{ position: 'absolute', top: 12, left: 12, zIndex: 1, padding: '6px 10px', borderRadius: 6, background: '#fff', color: '#d64545' }}>
+          {error}
+        </p>
+      )}
 
       <Map
         mapLib={maplibregl}
         initialViewState={{ bounds: [toLngLat(-40, -40), toLngLat(140, 140)] }}
-        style={{ width: '100%', height: '70vh' }}
+        style={{ width: '100%', height: '100%' }}
         mapStyle={MAP_STYLE}
       >
         <Source id="fence" type="geojson" data={FENCE}>
@@ -141,14 +145,6 @@ function App() {
           />
         </Source>
       </Map>
-
-      <ul>
-        {cows.map((c) => (
-          <li key={c.cow_id}>
-            {c.cow_id} ({c.x.toFixed(1)}, {c.y.toFixed(1)}) {c.state}/{c.level} · seq {c.seq}
-          </li>
-        ))}
-      </ul>
     </main>
   )
 }
