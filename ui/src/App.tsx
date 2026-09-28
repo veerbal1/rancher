@@ -7,6 +7,7 @@ import { CowsLayer } from './map/CowsLayer'
 import { DrawPaddock } from './map/DrawPaddock'
 import { DraftPaddockLayer } from './map/DraftPaddockLayer'
 import { PaddocksLayer } from './map/PaddocksLayer'
+import { PaddockLabelsLayer } from './map/PaddockLabelsLayer'
 import { toLngLat, type LngLat } from './map/geo'
 import { useCows } from './useCows'
 import { useFarmers, type Location } from './useFarmers'
@@ -106,6 +107,7 @@ function App() {
         <PaddocksLayer paddocks={paddocks} selectedId={selectedPaddockId} />
         {draftRing && <DraftPaddockLayer ring={draftRing} />}
         <CowsLayer cows={cows} />
+        <PaddockLabelsLayer selectedId={selectedPaddockId} />
         <DrawPaddock active={drawingPaddock} onFinish={handlePaddockDrawn} />
       </SatelliteMap>
 

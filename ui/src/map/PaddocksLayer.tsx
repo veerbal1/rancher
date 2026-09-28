@@ -15,7 +15,7 @@ export function PaddocksLayer({ paddocks, selectedId }: Props) {
       type: 'FeatureCollection',
       features: paddocks.map((p) => ({
         type: 'Feature',
-        properties: { id: p.id, name: p.name },
+        properties: { id: p.id, name: p.name, area_ha: p.area_ha },
         geometry: p.polygon,
       })),
     }),
