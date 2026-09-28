@@ -14,14 +14,21 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import type { Paddock } from '@/usePaddocks'
+import type { Collar } from '@/useCollars'
+import { AssignCollarsDialog } from './AssignCollarsDialog'
 
 type Props = {
   paddock: Paddock
+  collars: Collar[]
+  paddocks: Paddock[]
   onRename: (name: string) => Promise<void>
   onDelete: () => Promise<void>
+  onAssignCollars: (add: string[], remove: string[]) => Promise<void>
 }
 
-export function PaddockDetail({ paddock, onRename, onDelete }: Props) {
+export function PaddockDetail({ paddock, collars, paddocks, onRename, onDelete, onAssignCollars }: Props) {
+  const collarCount = collars.filter((c) => c.paddock_id === paddock.id).length
+
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(paddock.name)
   const [renaming, setRenaming] = useState(false)
@@ -159,6 +166,13 @@ export function PaddockDetail({ paddock, onRename, onDelete }: Props) {
       )}
 
       {renameError && <p className="text-sm text-destructive">{renameError}</p>}
+
+      <div className="flex items-center justify-between gap-3 border-t border-black/5 pt-2">
+        <p className="text-xs text-muted-foreground">
+          {collarCount} collar{collarCount === 1 ? '' : 's'}
+        </p>
+        <AssignCollarsDialog paddock={paddock} collars={collars} paddocks={paddocks} onSave={onAssignCollars} />
+      </div>
     </section>
   )
 }

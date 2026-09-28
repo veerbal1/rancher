@@ -32,7 +32,7 @@ function App() {
   const [draftRing, setDraftRing] = useState<LngLat[] | null>(null)
   const { paddocks, error: paddocksError, createPaddock, renamePaddock, deletePaddock } = usePaddocks(selectedFarmerId)
   const [selectedPaddockId, setSelectedPaddockId] = useState<string | null>(null)
-  const { collars, error: collarsError, buyCollars } = useCollars(selectedFarmerId)
+  const { collars, error: collarsError, buyCollars, assignCollars, forgetPaddock } = useCollars(selectedFarmerId)
 
   const selectedFarmer = farmers.find((f) => f.id === selectedFarmerId)
   const selectedPaddock = paddocks.find((p) => p.id === selectedPaddockId)
@@ -87,8 +87,16 @@ function App() {
   const deleteSelectedPaddock = async () => {
     if (!selectedPaddock) return
     await deletePaddock(selectedPaddock.id)
+    forgetPaddock(selectedPaddock.id)
     setSelectedPaddockId(null)
     toast.success(`${selectedPaddock.name} deleted`)
+  }
+
+  const saveCollarAssignment = async (add: string[], remove: string[]) => {
+    if (!selectedPaddock) return
+    if (add.length > 0) await assignCollars(add, selectedPaddock.id)
+    if (remove.length > 0) await assignCollars(remove, null)
+    toast.success(`${selectedPaddock.name} updated`, { description: `${add.length} added · ${remove.length} removed` })
   }
 
   const addCollars = async (count: number) => {
@@ -148,8 +156,11 @@ function App() {
           <PaddockDetail
             key={selectedPaddock.id}
             paddock={selectedPaddock}
+            collars={collars}
+            paddocks={paddocks}
             onRename={renameSelectedPaddock}
             onDelete={deleteSelectedPaddock}
+            onAssignCollars={saveCollarAssignment}
           />
         )}
         <CollarsSection collars={collars} paddocks={paddocks} canAdd={!!selectedFarmer} onAdd={addCollars} />

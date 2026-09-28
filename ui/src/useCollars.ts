@@ -10,6 +10,7 @@ export type Collar = {
 }
 
 const FARM_API_URL = import.meta.env.VITE_FARM_API_URL
+const MAX_PER_ASSIGN = 100
 
 export function useCollars(farmerId: string | null) {
   const [collars, setCollars] = useState<Collar[]>([])
@@ -45,5 +46,27 @@ export function useCollars(farmerId: string | null) {
     return body
   }
 
-  return { collars, error, buyCollars }
+  const assignCollars = async (collarIds: string[], paddockId: string | null) => {
+    if (!farmerId) throw new Error('no farmer selected')
+    for (let i = 0; i < collarIds.length; i += MAX_PER_ASSIGN) {
+      const chunk = collarIds.slice(i, i + MAX_PER_ASSIGN)
+      const res = await fetch(`${FARM_API_URL}/farmers/${encodeURIComponent(farmerId)}/collars`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ collar_ids: chunk, paddock_id: paddockId }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? `HTTP ${res.status}`)
+      }
+      const ids = new Set(chunk)
+      setCollars((prev) => prev.map((c) => (ids.has(c.id) ? { ...c, paddock_id: paddockId } : c)))
+    }
+  }
+
+  const forgetPaddock = (paddockId: string) => {
+    setCollars((prev) => prev.map((c) => (c.paddock_id === paddockId ? { ...c, paddock_id: null } : c)))
+  }
+
+  return { collars, error, buyCollars, assignCollars, forgetPaddock }
 }
