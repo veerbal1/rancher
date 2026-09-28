@@ -8,13 +8,3 @@ export function toLngLat(x: number, y: number): LngLat {
   const lng = ORIGIN.lng + x / (METRES_PER_DEG_LAT * Math.cos((ORIGIN.lat * Math.PI) / 180))
   return [lng, lat]
 }
-
-export function square(min: number, max: number): LngLat[] {
-  return [
-    [min, min],
-    [max, min],
-    [max, max],
-    [min, max],
-    [min, min],
-  ].map(([x, y]) => toLngLat(x, y))
-}
