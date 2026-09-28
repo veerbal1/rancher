@@ -66,6 +66,10 @@ func handle(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.API
 		return renamePaddock(ctx, req.PathParameters["id"], req.PathParameters["paddockId"], req.Body)
 	case "DELETE /farmers/{id}/paddocks/{paddockId}":
 		return deletePaddock(ctx, req.PathParameters["id"], req.PathParameters["paddockId"])
+	case "POST /farmers/{id}/collars":
+		return createCollars(ctx, req.PathParameters["id"], req.Body)
+	case "GET /farmers/{id}/collars":
+		return listCollars(ctx, req.PathParameters["id"])
 	default:
 		return respond(http.StatusNotFound, errorBody("not found"))
 	}
