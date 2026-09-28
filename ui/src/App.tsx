@@ -25,7 +25,7 @@ function App() {
   const [selectedFarmerId, setSelectedFarmerId] = useState<string | null>(null)
   const [drawingPaddock, setDrawingPaddock] = useState(false)
   const [draftRing, setDraftRing] = useState<LngLat[] | null>(null)
-  const { paddocks, error: paddocksError, createPaddock, deletePaddock } = usePaddocks(selectedFarmerId)
+  const { paddocks, error: paddocksError, createPaddock, renamePaddock, deletePaddock } = usePaddocks(selectedFarmerId)
   const [selectedPaddockId, setSelectedPaddockId] = useState<string | null>(null)
 
   const selectedFarmer = farmers.find((f) => f.id === selectedFarmerId)
@@ -62,6 +62,12 @@ function App() {
     const paddock = await createPaddock(draftRing)
     setDraftRing(null)
     toast.success(`${paddock.name} saved`, { description: `${paddock.area_ha} ha` })
+  }
+
+  const renameSelectedPaddock = async (name: string) => {
+    if (!selectedPaddock) return
+    const paddock = await renamePaddock(selectedPaddock.id, name)
+    toast.success(`Renamed to ${paddock.name}`)
   }
 
   const deleteSelectedPaddock = async () => {
@@ -115,7 +121,14 @@ function App() {
           onDiscardDraft={() => setDraftRing(null)}
           onSaveDraft={saveDraftPaddock}
         />
-        {selectedPaddock && <PaddockDetail paddock={selectedPaddock} onDelete={deleteSelectedPaddock} />}
+        {selectedPaddock && (
+          <PaddockDetail
+            key={selectedPaddock.id}
+            paddock={selectedPaddock}
+            onRename={renameSelectedPaddock}
+            onDelete={deleteSelectedPaddock}
+          />
+        )}
       </MenuPanel>
 
       <Toaster theme="light" position="top-center" />
