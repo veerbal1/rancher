@@ -20,10 +20,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
+type Location struct {
+	Lng float64 `json:"lng" dynamodbav:"lng"`
+	Lat float64 `json:"lat" dynamodbav:"lat"`
+}
+
 type Farmer struct {
-	ID        string `json:"id"         dynamodbav:"id"`
-	Name      string `json:"name"       dynamodbav:"name"`
-	CreatedAt string `json:"created_at" dynamodbav:"created_at"`
+	ID        string    `json:"id"                 dynamodbav:"id"`
+	Name      string    `json:"name"               dynamodbav:"name"`
+	Location  *Location `json:"location,omitempty" dynamodbav:"location,omitempty"`
+	CreatedAt string    `json:"created_at"         dynamodbav:"created_at"`
 }
 
 type farmerItem struct {
@@ -67,7 +73,8 @@ func handle(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.API
 
 func createFarmer(ctx context.Context, body string) (events.APIGatewayV2HTTPResponse, error) {
 	var in struct {
-		Name string `json:"name"`
+		Name     string    `json:"name"`
+		Location *Location `json:"location"`
 	}
 	if err := json.Unmarshal([]byte(body), &in); err != nil {
 		return respond(http.StatusBadRequest, errorBody("invalid JSON"))
@@ -76,8 +83,12 @@ func createFarmer(ctx context.Context, body string) (events.APIGatewayV2HTTPResp
 	if name == "" || len(name) > 100 {
 		return respond(http.StatusBadRequest, errorBody("name must be 1-100 characters"))
 	}
+	loc := in.Location
+	if loc == nil || loc.Lng < -180 || loc.Lng > 180 || loc.Lat < -90 || loc.Lat > 90 {
+		return respond(http.StatusBadRequest, errorBody("location must have a valid lng and lat"))
+	}
 
-	f := Farmer{ID: rand.Text(), Name: name, CreatedAt: time.Now().UTC().Format(time.RFC3339)}
+	f := Farmer{ID: rand.Text(), Name: name, Location: loc, CreatedAt: time.Now().UTC().Format(time.RFC3339)}
 	item, err := attributevalue.MarshalMap(farmerItem{PK: "FARMER#" + f.ID, SK: "PROFILE", Farmer: f})
 	if err != nil {
 		return events.APIGatewayV2HTTPResponse{}, err
