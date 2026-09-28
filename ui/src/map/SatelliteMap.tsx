@@ -22,6 +22,7 @@ export function SatelliteMap({ initialBounds, interactiveLayerIds, onClick, chil
 
   return (
     <Map
+      id="main"
       mapLib={maplibregl}
       initialViewState={{ bounds: initialBounds }}
       style={{ width: '100%', height: '100%' }}

@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
-import type { MapLayerMouseEvent } from '@vis.gl/react-maplibre'
+import { useMap, type MapLayerMouseEvent } from '@vis.gl/react-maplibre'
 import { Toaster } from '@/components/ui/sonner'
 import { SatelliteMap } from './map/SatelliteMap'
 import { CowsLayer } from './map/CowsLayer'
@@ -9,7 +9,7 @@ import { DraftPaddockLayer } from './map/DraftPaddockLayer'
 import { PaddocksLayer } from './map/PaddocksLayer'
 import { toLngLat, type LngLat } from './map/geo'
 import { useCows } from './useCows'
-import { useFarmers } from './useFarmers'
+import { useFarmers, type Location } from './useFarmers'
 import { usePaddocks } from './usePaddocks'
 import { MenuPanel } from './components/MenuPanel'
 import { FarmersSection } from './components/FarmersSection'
@@ -20,6 +20,7 @@ import { PaddockDetail } from './components/PaddockDetail'
 const INITIAL_BOUNDS: [LngLat, LngLat] = [toLngLat(-40, -40), toLngLat(140, 140)]
 
 function App() {
+  const { main: map } = useMap()
   const { cows, error: cowsError } = useCows('sim-1')
   const { farmers, error: farmersError, createFarmer } = useFarmers()
   const [selectedFarmerId, setSelectedFarmerId] = useState<string | null>(null)
@@ -33,15 +34,22 @@ function App() {
 
   const error = cowsError || farmersError || paddocksError
 
+  const getMapCenter = (): Location | null => {
+    const center = map?.getCenter()
+    return center ? { lng: Number(center.lng.toFixed(6)), lat: Number(center.lat.toFixed(6)) } : null
+  }
+
   const selectFarmer = (id: string | null) => {
+    const location = farmers.find((f) => f.id === id)?.location
+    if (location) map?.flyTo({ center: [location.lng, location.lat], zoom: 16, duration: 1500 })
     setSelectedFarmerId(id)
     setSelectedPaddockId(null)
     setDraftRing(null)
     setDrawingPaddock(false)
   }
 
-  const handleCreateFarmer = async (name: string) => {
-    const farmer = await createFarmer(name)
+  const handleCreateFarmer = async (name: string, location: Location) => {
+    const farmer = await createFarmer(name, location)
     selectFarmer(farmer.id)
     toast.success(`Farmer ${farmer.name} created`)
   }
@@ -106,6 +114,7 @@ function App() {
           farmers={farmers}
           selectedId={selectedFarmerId}
           onSelect={selectFarmer}
+          getLocation={getMapCenter}
           onCreate={handleCreateFarmer}
         />
         {selectedFarmer && <SelectedFarmer farmer={selectedFarmer} />}

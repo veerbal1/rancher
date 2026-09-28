@@ -1,15 +1,16 @@
 import { CreateFarmerDialog } from './CreateFarmerDialog'
 import { FarmerSelect } from './FarmerSelect'
-import type { Farmer } from '@/useFarmers'
+import type { Farmer, Location } from '@/useFarmers'
 
 type Props = {
   farmers: Farmer[]
   selectedId: string | null
   onSelect: (id: string | null) => void
-  onCreate: (name: string) => Promise<void>
+  getLocation: () => Location | null
+  onCreate: (name: string, location: Location) => Promise<void>
 }
 
-export function FarmersSection({ farmers, selectedId, onSelect, onCreate }: Props) {
+export function FarmersSection({ farmers, selectedId, onSelect, getLocation, onCreate }: Props) {
   return (
     <section className="flex items-center gap-3">
       <h2 className="text-sm font-semibold">Farmers</h2>
@@ -22,7 +23,7 @@ export function FarmersSection({ farmers, selectedId, onSelect, onCreate }: Prop
         )}
       </div>
 
-      <CreateFarmerDialog onCreate={onCreate} />
+      <CreateFarmerDialog getLocation={getLocation} onCreate={onCreate} />
     </section>
   )
 }

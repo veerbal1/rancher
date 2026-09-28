@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 
-export type Farmer = { id: string; name: string; created_at: string }
+export type Location = { lng: number; lat: number }
+
+export type Farmer = { id: string; name: string; location?: Location; created_at: string }
 
 const FARM_API_URL = import.meta.env.VITE_FARM_API_URL
 
@@ -17,11 +19,11 @@ export function useFarmers() {
       .catch((e) => setError(String(e)))
   }, [])
 
-  const createFarmer = async (name: string): Promise<Farmer> => {
+  const createFarmer = async (name: string, location: Location): Promise<Farmer> => {
     const res = await fetch(`${FARM_API_URL}/farmers`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, location }),
     })
     const body = await res.json()
     if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`)
