@@ -85,6 +85,13 @@ resource "aws_apigatewayv2_route" "farm_api" {
   target    = "integrations/${aws_apigatewayv2_integration.farm_api.id}"
 }
 
+resource "aws_apigatewayv2_route" "world" {
+  api_id             = aws_apigatewayv2_api.farm.id
+  route_key          = "GET /world"
+  target             = "integrations/${aws_apigatewayv2_integration.farm_api.id}"
+  authorization_type = "AWS_IAM"
+}
+
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.farm.id
   name        = "$default"

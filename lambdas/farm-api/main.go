@@ -70,6 +70,8 @@ func handle(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.API
 		return createCollars(ctx, req.PathParameters["id"], req.Body)
 	case "GET /farmers/{id}/collars":
 		return listCollars(ctx, req.PathParameters["id"])
+	case "GET /world":
+		return getWorld(ctx)
 	case "PATCH /farmers/{id}/collars":
 		return assignCollars(ctx, req.PathParameters["id"], req.Body)
 	default:
