@@ -5,3 +5,6 @@ infra/*.tfstate.*
 
 # macOS
 .DS_Store
+
+# Lambda builds
+build/
