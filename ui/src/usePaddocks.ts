@@ -46,5 +46,18 @@ export function usePaddocks(farmerId: string | null) {
     return body
   }
 
-  return { paddocks, error, createPaddock }
+  const deletePaddock = async (id: string) => {
+    if (!farmerId) throw new Error('no farmer selected')
+    const res = await fetch(
+      `${FARM_API_URL}/farmers/${encodeURIComponent(farmerId)}/paddocks/${encodeURIComponent(id)}`,
+      { method: 'DELETE' },
+    )
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error ?? `HTTP ${res.status}`)
+    }
+    setPaddocks((prev) => prev.filter((p) => p.id !== id))
+  }
+
+  return { paddocks, error, createPaddock, deletePaddock }
 }

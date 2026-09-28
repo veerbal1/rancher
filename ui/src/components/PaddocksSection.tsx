@@ -4,6 +4,8 @@ import type { Paddock } from '@/usePaddocks'
 
 type Props = {
   paddocks: Paddock[]
+  selectedId: string | null
+  onSelect: (id: string | null) => void
   canAdd: boolean
   drawing: boolean
   hasDraft: boolean
@@ -15,6 +17,8 @@ type Props = {
 
 export function PaddocksSection({
   paddocks,
+  selectedId,
+  onSelect,
   canAdd,
   drawing,
   hasDraft,
@@ -79,9 +83,17 @@ export function PaddocksSection({
       {paddocks.length > 0 && (
         <ul className="grid gap-1.5">
           {paddocks.map((p) => (
-            <li key={p.id} className="flex items-center justify-between rounded-lg bg-white/60 px-3 py-2 text-sm">
-              <span>{p.name}</span>
-              <span className="text-muted-foreground">{p.area_ha} ha</span>
+            <li key={p.id}>
+              <button
+                type="button"
+                onClick={() => onSelect(p.id === selectedId ? null : p.id)}
+                className={`flex w-full cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm transition ${
+                  p.id === selectedId ? 'bg-primary/10 ring-1 ring-primary' : 'bg-white/60 hover:bg-white/80'
+                }`}
+              >
+                <span>{p.name}</span>
+                <span className="text-muted-foreground">{p.area_ha} ha</span>
+              </button>
             </li>
           ))}
         </ul>
