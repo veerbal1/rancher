@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"math/rand"
 	"testing"
 )
@@ -41,5 +42,22 @@ func TestCueLadderAndCalmDown(t *testing.T) {
 	}
 	if col.State() != Inside || col.Level() != CueNone || col.gaveUp {
 		t.Errorf("after calming down: state %v, level %v, gaveUp %v; want inside, none, false", col.State(), col.Level(), col.gaveUp)
+	}
+}
+
+func TestCuedCowNeverBreaches(t *testing.T) {
+	fence := square(100)
+	for seed := int64(1); seed <= 20; seed++ {
+		start := at(95, 50)
+		cow := NewCow(start.Lng, start.Lat, rand.New(rand.NewSource(seed)))
+		cow.Heading = math.Pi / 2
+		col := NewCollar("C1", 1, "A", fence, cow, 10)
+
+		for tick := 1; tick <= 600; tick++ {
+			col.Step(1)
+			if col.State() == Breached {
+				t.Fatalf("seed %d: breached at tick %d", seed, tick)
+			}
+		}
 	}
 }

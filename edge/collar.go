@@ -124,20 +124,21 @@ func (col *Collar) Observe() Cue {
 
 func (col *Collar) Step(dt float64) {
 	col.cow.Step(dt)
-	if cue := col.Observe(); cue != CueNone {
-		col.respond(cue)
+	if col.Observe() == CuePulse {
+		col.cow.TurnAround()
 	}
+	col.respond()
 }
 
-func (col *Collar) respond(cue Cue) {
+func (col *Collar) respond() {
 	lng, lat := col.fence.Center()
-	switch cue {
+	switch col.level {
 	case CueAudio:
-		col.cow.SteerTo(lng, lat, 0.2)
+		col.cow.SteerTo(lng, lat, 0.3)
 	case CueVibration:
 		col.cow.SteerTo(lng, lat, 0.6)
 	case CuePulse:
-		col.cow.TurnAround()
+		col.cow.SteerTo(lng, lat, 0.9)
 	}
 }
 
