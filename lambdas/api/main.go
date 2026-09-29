@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -27,6 +28,8 @@ type Cow struct {
 	State     string  `json:"state"      dynamodbav:"state"`
 	Level     string  `json:"level"      dynamodbav:"level"`
 }
+
+const staleAfter = 10 * time.Second
 
 var (
 	db    *dynamodb.Client
@@ -59,12 +62,15 @@ func handle(ctx context.Context, req events.LambdaFunctionURLRequest) (events.La
 		return events.LambdaFunctionURLResponse{}, err
 	}
 
-	var cows []Cow
-	if err := attributevalue.UnmarshalListOfMaps(out.Items, &cows); err != nil {
+	var all []Cow
+	if err := attributevalue.UnmarshalListOfMaps(out.Items, &all); err != nil {
 		return events.LambdaFunctionURLResponse{}, err
 	}
-	if cows == nil {
-		cows = []Cow{} // return [] instead of null for an empty farm
+	cows := []Cow{}
+	for _, c := range all {
+		if t, err := time.Parse(time.RFC3339Nano, c.Time); err == nil && time.Since(t) < staleAfter {
+			cows = append(cows, c)
+		}
 	}
 
 	body, err := json.Marshal(cows)
