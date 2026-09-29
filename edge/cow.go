@@ -5,21 +5,20 @@ import (
 	"math/rand"
 )
 
+const metresPerDeg = 111_320.0
+
 type Cow struct {
-	ID      string
-	X       float64
-	Y       float64
+	Lat     float64
+	Lng     float64
 	Heading float64
 	Speed   float64
 	rng     *rand.Rand
 }
 
-func NewCow(id string, x, y float64, seed int64) *Cow {
-	rng := rand.New(rand.NewSource(seed))
+func NewCow(lng, lat float64, rng *rand.Rand) *Cow {
 	return &Cow{
-		ID:      id,
-		X:       x,
-		Y:       y,
+		Lat:     lat,
+		Lng:     lng,
 		Heading: rng.Float64() * 2 * math.Pi,
 		Speed:   1,
 		rng:     rng,
@@ -27,20 +26,21 @@ func NewCow(id string, x, y float64, seed int64) *Cow {
 }
 
 func (c *Cow) Step(dt float64) {
-	c.Heading += (c.rng.Float64()*2 - 1) * 0.4
-	c.Heading = wrap(c.Heading)
+	c.Heading = wrap(c.Heading + (c.rng.Float64()*2-1)*0.4)
 
-	c.X += c.Speed * dt * math.Sin(c.Heading)
-	c.Y += c.Speed * dt * math.Cos(c.Heading)
+	d := c.Speed * dt
+	c.Lat += d * math.Cos(c.Heading) / metresPerDeg
+	c.Lng += d * math.Sin(c.Heading) / (metresPerDeg * math.Cos(c.Lat*math.Pi/180))
 }
 
 func (c *Cow) TurnAround() {
 	c.Heading = wrap(c.Heading + math.Pi + (c.rng.Float64()*2-1)*0.5)
 }
 
-func (c *Cow) SteerTo(x, y, rate float64) {
-	target := math.Atan2(x-c.X, y-c.Y)
-	diff := target - c.Heading
+func (c *Cow) SteerTo(lng, lat, rate float64) {
+	dx := (lng - c.Lng) * metresPerDeg * math.Cos(c.Lat*math.Pi/180)
+	dy := (lat - c.Lat) * metresPerDeg
+	diff := math.Atan2(dx, dy) - c.Heading
 
 	for diff > math.Pi {
 		diff -= 2 * math.Pi

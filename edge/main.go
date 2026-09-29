@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sort"
 	"syscall"
 	"time"
 
@@ -13,26 +14,18 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 )
 
-const (
-	numSims = 2
-	numCows = 20
-)
-
-type Sim struct {
-	ID      string
-	Collars []*Collar
-	seq     uint64
-}
+const sendToKinesis = false
 
 type Event struct {
-	SimID string    `json:"sim_id"`
-	Seq   uint64    `json:"seq"`
-	Time  time.Time `json:"time"`
-	CowID string    `json:"cow_id"`
-	X     float64   `json:"x"`
-	Y     float64   `json:"y"`
-	State State     `json:"state"`
-	Level Cue       `json:"level"`
+	FarmerID  string    `json:"farmer_id"`
+	Seq       uint64    `json:"seq"`
+	Time      time.Time `json:"time"`
+	CollarID  string    `json:"collar_id"`
+	PaddockID string    `json:"paddock_id"`
+	Lat       float64   `json:"lat"`
+	Lng       float64   `json:"lng"`
+	State     State     `json:"state"`
+	Level     Cue       `json:"level"`
 }
 
 func main() {
@@ -43,46 +36,34 @@ func main() {
 	if err != nil {
 		log.Fatalf("aws config: %v", err)
 	}
-	client := kinesis.NewFromConfig(cfg)
 
-	fence := Rect{MinX: 0, MinY: 0, MaxX: 100, MaxY: 100}
-
-	sims := make([]*Sim, 0, numSims)
-	for s := 0; s < numSims; s++ {
-		sim := &Sim{ID: fmt.Sprintf("sim-%d", s+1)}
-		for i := 0; i < numCows; i++ {
-			id := fmt.Sprintf("cow-%d", i+1)
-			c := NewCow(id, 20+float64(i%10)*6, 35+float64(i/10)*30, int64(s*numCows+i+1))
-			sim.Collars = append(sim.Collars, NewCollar(c, fence, 10))
-		}
-		sims = append(sims, sim)
-	}
+	updates := make(chan World, 1)
+	go watchWorld(ctx, cfg, updates)
+	towers := map[string]*Tower{}
 
 	events := make(chan Event, 100)
 	done := make(chan struct{})
 	go func() {
-		Tower(events, client)
+		if sendToKinesis {
+			Uplink(events, kinesis.NewFromConfig(cfg))
+		} else {
+			logEvents(events)
+		}
 		close(done)
 	}()
 
 	for ctx.Err() == nil {
-		now := time.Now()
-		for _, sim := range sims {
-			for _, col := range sim.Collars {
-				col.Step(1)
-				sim.seq++
-				events <- Event{
-					SimID: sim.ID,
-					Seq:   sim.seq,
-					Time:  now,
-					CowID: col.cow.ID,
-					X:     col.cow.X,
-					Y:     col.cow.Y,
-					State: col.State(),
-					Level: col.Level(),
-				}
-			}
+		select {
+		case w := <-updates:
+			applyWorld(towers, w)
+		default:
 		}
+
+		now := time.Now()
+		for _, t := range sortedTowers(towers) {
+			t.Tick(now, func(e Event) { events <- e })
+		}
+
 		select {
 		case <-ctx.Done():
 		case <-time.After(time.Second):
@@ -92,4 +73,48 @@ func main() {
 	close(events)
 	<-done
 	fmt.Println("shutdown: all events drained")
+}
+
+func applyWorld(towers map[string]*Tower, w World) {
+	seen := make(map[string]bool, len(w.Farms))
+	for _, f := range w.Farms {
+		seen[f.FarmerID] = true
+		t, ok := towers[f.FarmerID]
+		if !ok {
+			t = NewTower(f.FarmerID)
+			towers[f.FarmerID] = t
+			log.Printf("tower %s: up", f.Name)
+		}
+		if r := t.Reconcile(f); r != (ReconcileResult{}) {
+			log.Printf("tower %s: +%d cows, %d fences changed, -%d cows, %d cows now", t.Name, r.Added, r.FenceChanged, r.Removed, len(t.order))
+		}
+	}
+	for id, t := range towers {
+		if !seen[id] {
+			delete(towers, id)
+			log.Printf("tower %s: down", t.Name)
+		}
+	}
+}
+
+func sortedTowers(towers map[string]*Tower) []*Tower {
+	list := make([]*Tower, 0, len(towers))
+	for _, t := range towers {
+		list = append(list, t)
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].FarmerID < list[j].FarmerID })
+	return list
+}
+
+func logEvents(events <-chan Event) {
+	for e := range events {
+		log.Printf("event farmer=%s seq=%d collar=%s (%.6f, %.6f) %s/%s", short(e.FarmerID), e.Seq, short(e.CollarID), e.Lat, e.Lng, e.State, e.Level)
+	}
+}
+
+func short(id string) string {
+	if len(id) > 6 {
+		return id[:6]
+	}
+	return id
 }

@@ -1,67 +1,106 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
-	"log"
+	"hash/fnv"
+	"math/rand"
+	"slices"
+	"sort"
 	"time"
-
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/kinesis"
-	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 )
 
-func Tower(events <-chan Event, client *kinesis.Client) {
-	var batch []Event
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
+const warnM = 10.0
 
-	for {
-		select {
-		case e, ok := <-events:
-			if !ok {
-				send(client, batch)
-				return
-			}
-			batch = append(batch, e)
-			if len(batch) == 500 {
-				send(client, batch)
-				batch = nil
-			}
-		case <-ticker.C:
-			send(client, batch)
-			batch = nil
+type Tower struct {
+	FarmerID string
+	Name     string
+	seq      uint64
+	collars  map[string]*Collar
+	order    []*Collar
+}
+
+type ReconcileResult struct {
+	Added        int
+	FenceChanged int
+	Removed      int
+}
+
+func NewTower(farmerID string) *Tower {
+	return &Tower{FarmerID: farmerID, collars: map[string]*Collar{}}
+}
+
+func (t *Tower) Reconcile(f WorldFarm) ReconcileResult {
+	t.Name = f.Name
+
+	fences := make(map[string]Polygon, len(f.Paddocks))
+	for _, p := range f.Paddocks {
+		if len(p.Polygon.Coordinates) == 0 {
+			continue
 		}
+		if fence := PolygonFromRing(p.Polygon.Coordinates[0]); len(fence) >= 3 {
+			fences[p.ID] = fence
+		}
+	}
+
+	var r ReconcileResult
+	wanted := make(map[string]bool, len(f.Collars))
+	for _, c := range f.Collars {
+		if c.PaddockID == nil {
+			continue
+		}
+		fence, ok := fences[*c.PaddockID]
+		if !ok {
+			continue
+		}
+		wanted[c.ID] = true
+
+		col, exists := t.collars[c.ID]
+		switch {
+		case !exists:
+			rng := rand.New(rand.NewSource(seedFor(c.ID)))
+			lng, lat := fence.RandomPoint(rng)
+			t.collars[c.ID] = NewCollar(c.ID, c.Number, *c.PaddockID, fence, NewCow(lng, lat, rng), warnM)
+			r.Added++
+		case col.PaddockID != *c.PaddockID || !slices.Equal(col.fence, fence):
+			col.SetFence(*c.PaddockID, fence)
+			r.FenceChanged++
+		}
+	}
+
+	for id := range t.collars {
+		if !wanted[id] {
+			delete(t.collars, id)
+			r.Removed++
+		}
+	}
+
+	t.order = t.order[:0]
+	for _, col := range t.collars {
+		t.order = append(t.order, col)
+	}
+	sort.Slice(t.order, func(i, j int) bool { return t.order[i].Number < t.order[j].Number })
+	return r
+}
+
+func (t *Tower) Tick(now time.Time, emit func(Event)) {
+	for _, col := range t.order {
+		col.Step(1)
+		t.seq++
+		emit(Event{
+			FarmerID:  t.FarmerID,
+			Seq:       t.seq,
+			Time:      now,
+			CollarID:  col.ID,
+			PaddockID: col.PaddockID,
+			Lat:       col.cow.Lat,
+			Lng:       col.cow.Lng,
+			State:     col.State(),
+			Level:     col.Level(),
+		})
 	}
 }
 
-func send(client *kinesis.Client, batch []Event) {
-	if len(batch) == 0 {
-		return
-	}
-	entries := make([]types.PutRecordsRequestEntry, 0, len(batch))
-	for _, e := range batch {
-		b, err := json.Marshal(e)
-		if err != nil {
-			log.Printf("marshal: %v", err)
-			continue
-		}
-		entries = append(entries, types.PutRecordsRequestEntry{
-			Data:         b,
-			PartitionKey: aws.String(e.SimID),
-		})
-	}
-
-	out, err := client.PutRecords(context.Background(), &kinesis.PutRecordsInput{
-		StreamName: aws.String("cow-events"),
-		Records:    entries,
-	})
-	if err != nil {
-		log.Printf("put records: %v", err)
-		return
-	}
-	if n := aws.ToInt32(out.FailedRecordCount); n > 0 {
-		log.Printf("%d of %d records failed", n, len(entries))
-	}
-	log.Printf("sent %d records", len(entries))
+func seedFor(id string) int64 {
+	h := fnv.New64a()
+	h.Write([]byte(id))
+	return int64(h.Sum64() >> 1)
 }

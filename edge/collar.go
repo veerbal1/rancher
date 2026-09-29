@@ -51,9 +51,12 @@ const (
 )
 
 type Collar struct {
-	cow   *Cow
-	fence Rect
-	warnM float64
+	ID        string
+	Number    int
+	PaddockID string
+	cow       *Cow
+	fence     Polygon
+	warnM     float64
 
 	state  State
 	level  Cue
@@ -62,8 +65,13 @@ type Collar struct {
 	gaveUp bool
 }
 
-func NewCollar(c *Cow, f Rect, warnM float64) *Collar {
-	return &Collar{cow: c, fence: f, warnM: warnM, state: Inside}
+func NewCollar(id string, number int, paddockID string, fence Polygon, c *Cow, warnM float64) *Collar {
+	return &Collar{ID: id, Number: number, PaddockID: paddockID, cow: c, fence: fence, warnM: warnM, state: Inside}
+}
+
+func (col *Collar) SetFence(paddockID string, fence Polygon) {
+	col.PaddockID = paddockID
+	col.fence = fence
 }
 
 func (col *Collar) State() State { return col.state }
@@ -71,7 +79,7 @@ func (col *Collar) State() State { return col.state }
 func (col *Collar) Level() Cue { return col.level }
 
 func (col *Collar) Observe() Cue {
-	raw := zoneToState(col.fence.Evaluate(col.cow.X, col.cow.Y, col.warnM))
+	raw := zoneToState(col.fence.Evaluate(col.cow.Lng, col.cow.Lat, col.warnM))
 
 	switch {
 	case raw > col.state:
@@ -122,12 +130,12 @@ func (col *Collar) Step(dt float64) {
 }
 
 func (col *Collar) respond(cue Cue) {
-	x, y := col.fence.Center()
+	lng, lat := col.fence.Center()
 	switch cue {
 	case CueAudio:
-		col.cow.SteerTo(x, y, 0.2)
+		col.cow.SteerTo(lng, lat, 0.2)
 	case CueVibration:
-		col.cow.SteerTo(x, y, 0.6)
+		col.cow.SteerTo(lng, lat, 0.6)
 	case CuePulse:
 		col.cow.TurnAround()
 	}

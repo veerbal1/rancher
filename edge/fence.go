@@ -1,27 +1,79 @@
 package main
 
-type Rect struct {
-	MinX float64
-	MinY float64
-	MaxX float64
-	MaxY float64
+import (
+	"math"
+	"math/rand"
+)
+
+type Point struct {
+	Lng float64
+	Lat float64
 }
 
-func (r Rect) Contains(x, y float64) bool {
-	return x >= r.MinX && x <= r.MaxX && y >= r.MinY && y <= r.MaxY
+type Polygon []Point
+
+func PolygonFromRing(ring [][2]float64) Polygon {
+	p := make(Polygon, 0, len(ring))
+	for _, c := range ring {
+		p = append(p, Point{Lng: c[0], Lat: c[1]})
+	}
+	if n := len(p); n > 1 && p[0] == p[n-1] {
+		p = p[:n-1]
+	}
+	return p
 }
 
-func (r Rect) DistanceToEdge(x, y float64) float64 {
-	west := x - r.MinX
-	east := r.MaxX - x
-	south := y - r.MinY
-	north := r.MaxY - y
-
-	return min(west, east, south, north)
+func (p Polygon) Contains(lng, lat float64) bool {
+	inside := false
+	for i, j := 0, len(p)-1; i < len(p); j, i = i, i+1 {
+		a, b := p[i], p[j]
+		if (a.Lat > lat) != (b.Lat > lat) && lng < (b.Lng-a.Lng)*(lat-a.Lat)/(b.Lat-a.Lat)+a.Lng {
+			inside = !inside
+		}
+	}
+	return inside
 }
 
-func (r Rect) Center() (float64, float64) {
-	return (r.MinX + r.MaxX) / 2, (r.MinY + r.MaxY) / 2
+func (p Polygon) DistanceToEdge(lng, lat float64) float64 {
+	k := metresPerDeg * math.Cos(lat*math.Pi/180)
+	best := math.Inf(1)
+	for i := range p {
+		a, b := p[i], p[(i+1)%len(p)]
+		ax, ay := (a.Lng-lng)*k, (a.Lat-lat)*metresPerDeg
+		bx, by := (b.Lng-lng)*k, (b.Lat-lat)*metresPerDeg
+		dx, dy := bx-ax, by-ay
+		t := 0.0
+		if l := dx*dx + dy*dy; l > 0 {
+			t = math.Max(0, math.Min(1, -(ax*dx+ay*dy)/l))
+		}
+		best = math.Min(best, math.Hypot(ax+t*dx, ay+t*dy))
+	}
+	return best
+}
+
+func (p Polygon) Center() (float64, float64) {
+	var lng, lat float64
+	for _, pt := range p {
+		lng += pt.Lng
+		lat += pt.Lat
+	}
+	return lng / float64(len(p)), lat / float64(len(p))
+}
+
+func (p Polygon) RandomPoint(rng *rand.Rand) (float64, float64) {
+	minLng, minLat, maxLng, maxLat := p[0].Lng, p[0].Lat, p[0].Lng, p[0].Lat
+	for _, pt := range p {
+		minLng, maxLng = math.Min(minLng, pt.Lng), math.Max(maxLng, pt.Lng)
+		minLat, maxLat = math.Min(minLat, pt.Lat), math.Max(maxLat, pt.Lat)
+	}
+	for range 100 {
+		lng := minLng + rng.Float64()*(maxLng-minLng)
+		lat := minLat + rng.Float64()*(maxLat-minLat)
+		if p.Contains(lng, lat) {
+			return lng, lat
+		}
+	}
+	return p.Center()
 }
 
 type Zone int
@@ -32,27 +84,12 @@ const (
 	ZoneOutside
 )
 
-func (z Zone) String() string {
-	switch z {
-	case ZoneInside:
-		return "inside"
-	case ZoneWarning:
-		return "warning"
-	case ZoneOutside:
-		return "outside"
-	default:
-		return "unknown"
-	}
-}
-
-func (r Rect) Evaluate(x, y, warnM float64) Zone {
-	d := r.DistanceToEdge(x, y)
-	if d < 0 {
+func (p Polygon) Evaluate(lng, lat, warnM float64) Zone {
+	if !p.Contains(lng, lat) {
 		return ZoneOutside
 	}
-	if d <= warnM {
+	if p.DistanceToEdge(lng, lat) <= warnM {
 		return ZoneWarning
 	}
-
 	return ZoneInside
 }
