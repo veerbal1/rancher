@@ -2,7 +2,6 @@ import { useMemo } from 'react'
 import { Source, Layer } from '@vis.gl/react-maplibre'
 import type { FeatureCollection, Point } from 'geojson'
 import type { Cow } from '../useCows'
-import { toLngLat } from './geo'
 
 const COLORS: Record<string, string> = {
   inside: '#2e9e5b',
@@ -16,8 +15,8 @@ export function CowsLayer({ cows }: { cows: Cow[] }) {
       type: 'FeatureCollection',
       features: cows.map((c) => ({
         type: 'Feature',
-        properties: { cow_id: c.cow_id, state: c.state },
-        geometry: { type: 'Point', coordinates: toLngLat(c.x, c.y) },
+        properties: { collar_id: c.collar_id, state: c.state },
+        geometry: { type: 'Point', coordinates: [c.lng, c.lat] },
       })),
     }),
     [cows],

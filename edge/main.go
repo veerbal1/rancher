@@ -14,7 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 )
 
-const sendToKinesis = false
+const sendToKinesis = true
 
 type Event struct {
 	FarmerID  string    `json:"farmer_id"`

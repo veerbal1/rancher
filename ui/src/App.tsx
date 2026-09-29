@@ -25,9 +25,9 @@ const INITIAL_BOUNDS: [LngLat, LngLat] = [toLngLat(-40, -40), toLngLat(140, 140)
 
 function App() {
   const { main: map } = useMap()
-  const { cows, error: cowsError } = useCows('sim-1')
   const { farmers, error: farmersError, createFarmer } = useFarmers()
   const [selectedFarmerId, setSelectedFarmerId] = useState<string | null>(null)
+  const { cows, error: cowsError } = useCows(selectedFarmerId)
   const [drawingPaddock, setDrawingPaddock] = useState(false)
   const [draftRing, setDraftRing] = useState<LngLat[] | null>(null)
   const { paddocks, error: paddocksError, createPaddock, renamePaddock, deletePaddock } = usePaddocks(selectedFarmerId)
