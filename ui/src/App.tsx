@@ -17,6 +17,7 @@ import { usePaddocks } from './usePaddocks'
 import { useCollars, type Collar } from './useCollars'
 import { useShifts } from './useShifts'
 import { useCueSound } from './useCueSound'
+import { useFarmSounds } from './useFarmSounds'
 import { MenuPanel } from './components/MenuPanel'
 import { FarmersSection } from './components/FarmersSection'
 import { SelectedFarmer } from './components/SelectedFarmer'
@@ -40,6 +41,7 @@ function App() {
   const { shifts, error: shiftsError, startShift } = useShifts(selectedFarmerId)
   const [soundOn, setSoundOn] = useState(false)
   useCueSound(cows, soundOn)
+  useFarmSounds(map, cows, soundOn)
 
   const selectedFarmer = farmers.find((f) => f.id === selectedFarmerId)
   const selectedPaddock = paddocks.find((p) => p.id === selectedPaddockId)
