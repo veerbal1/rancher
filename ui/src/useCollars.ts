@@ -77,9 +77,14 @@ export function useCollars(farmerId: string | null) {
     setCollars((prev) => prev.filter((c) => c.id !== id))
   }
 
+  const moveLocally = (collarIds: string[], paddockId: string) => {
+    const ids = new Set(collarIds)
+    setCollars((prev) => prev.map((c) => (ids.has(c.id) ? { ...c, paddock_id: paddockId } : c)))
+  }
+
   const forgetPaddock = (paddockId: string) => {
     setCollars((prev) => prev.map((c) => (c.paddock_id === paddockId ? { ...c, paddock_id: null } : c)))
   }
 
-  return { collars, error, buyCollars, assignCollars, deleteCollar, forgetPaddock }
+  return { collars, error, buyCollars, assignCollars, deleteCollar, moveLocally, forgetPaddock }
 }

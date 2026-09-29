@@ -16,6 +16,7 @@ import {
 import type { Paddock } from '@/usePaddocks'
 import type { Collar } from '@/useCollars'
 import { AssignCollarsDialog } from './AssignCollarsDialog'
+import { MoveHerdDialog } from './MoveHerdDialog'
 
 type Props = {
   paddock: Paddock
@@ -24,9 +25,10 @@ type Props = {
   onRename: (name: string) => Promise<void>
   onDelete: () => Promise<void>
   onAssignCollars: (add: string[], remove: string[]) => Promise<void>
+  onMoveHerd: (toPaddockId: string) => Promise<void>
 }
 
-export function PaddockDetail({ paddock, collars, paddocks, onRename, onDelete, onAssignCollars }: Props) {
+export function PaddockDetail({ paddock, collars, paddocks, onRename, onDelete, onAssignCollars, onMoveHerd }: Props) {
   const collarCount = collars.filter((c) => c.paddock_id === paddock.id).length
 
   const [editing, setEditing] = useState(false)
@@ -171,7 +173,10 @@ export function PaddockDetail({ paddock, collars, paddocks, onRename, onDelete, 
         <p className="text-xs text-muted-foreground">
           {collarCount} collar{collarCount === 1 ? '' : 's'}
         </p>
-        <AssignCollarsDialog paddock={paddock} collars={collars} paddocks={paddocks} onSave={onAssignCollars} />
+        <div className="flex items-center gap-1.5">
+          <MoveHerdDialog paddock={paddock} paddocks={paddocks} cowCount={collarCount} onMove={onMoveHerd} />
+          <AssignCollarsDialog paddock={paddock} collars={collars} paddocks={paddocks} onSave={onAssignCollars} />
+        </div>
       </div>
     </section>
   )

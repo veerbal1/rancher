@@ -4,6 +4,7 @@ import { useMap, type MapLayerMouseEvent } from '@vis.gl/react-maplibre'
 import { Toaster } from '@/components/ui/sonner'
 import { SatelliteMap } from './map/SatelliteMap'
 import { CowsLayer } from './map/CowsLayer'
+import { ShiftLayer } from './map/ShiftLayer'
 import { DrawPaddock } from './map/DrawPaddock'
 import { DraftPaddockLayer } from './map/DraftPaddockLayer'
 import { PaddocksLayer } from './map/PaddocksLayer'
@@ -14,6 +15,7 @@ import { useCows } from './useCows'
 import { useFarmers, type Location } from './useFarmers'
 import { usePaddocks } from './usePaddocks'
 import { useCollars, type Collar } from './useCollars'
+import { useShifts } from './useShifts'
 import { MenuPanel } from './components/MenuPanel'
 import { FarmersSection } from './components/FarmersSection'
 import { SelectedFarmer } from './components/SelectedFarmer'
@@ -32,13 +34,14 @@ function App() {
   const [draftRing, setDraftRing] = useState<LngLat[] | null>(null)
   const { paddocks, error: paddocksError, createPaddock, renamePaddock, deletePaddock } = usePaddocks(selectedFarmerId)
   const [selectedPaddockId, setSelectedPaddockId] = useState<string | null>(null)
-  const { collars, error: collarsError, buyCollars, assignCollars, deleteCollar, forgetPaddock } = useCollars(selectedFarmerId)
+  const { collars, error: collarsError, buyCollars, assignCollars, deleteCollar, moveLocally, forgetPaddock } = useCollars(selectedFarmerId)
+  const { shifts, error: shiftsError, startShift } = useShifts(selectedFarmerId)
 
   const selectedFarmer = farmers.find((f) => f.id === selectedFarmerId)
   const selectedPaddock = paddocks.find((p) => p.id === selectedPaddockId)
   const overlaps = useMemo(() => (draftRing ? findOverlaps(draftRing, paddocks) : []), [draftRing, paddocks])
 
-  const error = cowsError || farmersError || paddocksError || collarsError
+  const error = cowsError || farmersError || paddocksError || collarsError || shiftsError
 
   const getMapCenter = (): Location | null => {
     const center = map?.getCenter()
@@ -99,6 +102,15 @@ function App() {
     toast.success(`${selectedPaddock.name} updated`, { description: `${add.length} added · ${remove.length} removed` })
   }
 
+  const moveHerd = async (toPaddockId: string) => {
+    if (!selectedPaddock) return
+    const shift = await startShift(selectedPaddock.id, toPaddockId)
+    moveLocally(shift.collar_ids, toPaddockId)
+    const to = paddocks.find((p) => p.id === toPaddockId)
+    const n = shift.collar_ids.length
+    toast.success(`Moving ${n} cow${n === 1 ? '' : 's'} to ${to?.name ?? 'the new paddock'}`, { description: 'Starts in 10 seconds' })
+  }
+
   const addCollars = async (count: number) => {
     const added = await buyCollars(count)
     const range = added.length === 1 ? added[0].name : `${added[0].name}–#${added[added.length - 1].number}`
@@ -131,6 +143,7 @@ function App() {
         <PaddocksLayer paddocks={paddocks} selectedId={selectedPaddockId} />
         {draftRing && <DraftPaddockLayer ring={draftRing} />}
         <CowsLayer cows={cows} />
+        <ShiftLayer shifts={shifts} paddocks={paddocks} />
         <PaddockLabelsLayer selectedId={selectedPaddockId} />
         <DrawPaddock active={drawingPaddock} onFinish={handlePaddockDrawn} />
       </SatelliteMap>
@@ -168,6 +181,7 @@ function App() {
             onRename={renameSelectedPaddock}
             onDelete={deleteSelectedPaddock}
             onAssignCollars={saveCollarAssignment}
+            onMoveHerd={moveHerd}
           />
         )}
         <CollarsSection collars={collars} paddocks={paddocks} canAdd={!!selectedFarmer} onAdd={addCollars} onDelete={removeCollar} />

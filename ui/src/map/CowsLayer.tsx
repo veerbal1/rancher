@@ -11,6 +11,7 @@ const COLORS: Record<string, string> = {
   inside: '#2e9e5b',
   warning: '#e0a100',
   breached: '#d64545',
+  moving: '#3b82f6',
 }
 
 const stateColor: ExpressionSpecification = [
@@ -19,6 +20,7 @@ const stateColor: ExpressionSpecification = [
   'inside', COLORS.inside,
   'warning', COLORS.warning,
   'breached', COLORS.breached,
+  'moving', COLORS.moving,
   '#888',
 ]
 
