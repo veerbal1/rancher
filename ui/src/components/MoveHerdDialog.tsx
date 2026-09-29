@@ -17,35 +17,24 @@ type Props = {
   paddock: Paddock
   paddocks: Paddock[]
   cowCount: number
-  onMove: (toPaddockId: string) => Promise<void>
+  onPick: (toPaddockId: string) => void
 }
 
-export function MoveHerdDialog({ paddock, paddocks, cowCount, onMove }: Props) {
+export function MoveHerdDialog({ paddock, paddocks, cowCount, onPick }: Props) {
   const [open, setOpen] = useState(false)
   const [toId, setToId] = useState<string | null>(null)
-  const [moving, setMoving] = useState(false)
-  const [error, setError] = useState('')
 
   const items = paddocks.filter((p) => p.id !== paddock.id).map((p) => ({ label: p.name, value: p.id }))
 
   const changeOpen = (next: boolean) => {
     setOpen(next)
     if (next) setToId(null)
-    else setError('')
   }
 
-  const move = async () => {
+  const pick = () => {
     if (!toId) return
-    setMoving(true)
-    setError('')
-    try {
-      await onMove(toId)
-      setOpen(false)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setMoving(false)
-    }
+    setOpen(false)
+    onPick(toId)
   }
 
   return (
@@ -60,8 +49,8 @@ export function MoveHerdDialog({ paddock, paddocks, cowCount, onMove }: Props) {
         <DialogHeader>
           <DialogTitle>Move herd from {paddock.name}</DialogTitle>
           <DialogDescription>
-            The {cowCount} cow{cowCount === 1 ? '' : 's'} here walk to the paddock you pick, guided by a virtual wall
-            that sweeps behind them. It starts 10 seconds after you confirm.
+            Pick where the {cowCount} cow{cowCount === 1 ? '' : 's'} here should go, then draw the lane they walk along.
+            Collars guide each cow to the gate, down the lane and into the new paddock.
           </DialogDescription>
         </DialogHeader>
 
@@ -78,12 +67,10 @@ export function MoveHerdDialog({ paddock, paddocks, cowCount, onMove }: Props) {
           </SelectContent>
         </Select>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
-
         <DialogFooter>
           <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
-          <Button className="cursor-pointer" disabled={!toId || moving} onClick={move}>
-            {moving ? 'Starting…' : 'Move herd'}
+          <Button className="cursor-pointer" disabled={!toId} onClick={pick}>
+            Draw path
           </Button>
         </DialogFooter>
       </DialogContent>

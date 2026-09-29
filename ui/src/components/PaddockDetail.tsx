@@ -25,7 +25,7 @@ type Props = {
   onRename: (name: string) => Promise<void>
   onDelete: () => Promise<void>
   onAssignCollars: (add: string[], remove: string[]) => Promise<void>
-  onMoveHerd: (toPaddockId: string) => Promise<void>
+  onMoveHerd: (toPaddockId: string) => void
 }
 
 export function PaddockDetail({ paddock, collars, paddocks, onRename, onDelete, onAssignCollars, onMoveHerd }: Props) {
@@ -174,7 +174,7 @@ export function PaddockDetail({ paddock, collars, paddocks, onRename, onDelete, 
           {collarCount} collar{collarCount === 1 ? '' : 's'}
         </p>
         <div className="flex items-center gap-1.5">
-          <MoveHerdDialog paddock={paddock} paddocks={paddocks} cowCount={collarCount} onMove={onMoveHerd} />
+          <MoveHerdDialog paddock={paddock} paddocks={paddocks} cowCount={collarCount} onPick={onMoveHerd} />
           <AssignCollarsDialog paddock={paddock} collars={collars} paddocks={paddocks} onSave={onAssignCollars} />
         </div>
       </div>

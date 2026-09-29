@@ -2,11 +2,13 @@ import { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useMap, type MapLayerMouseEvent } from '@vis.gl/react-maplibre'
 import { Toaster } from '@/components/ui/sonner'
+import { Button } from '@/components/ui/button'
 import { SatelliteMap } from './map/SatelliteMap'
 import { CowsLayer } from './map/CowsLayer'
 import { ShiftLayer } from './map/ShiftLayer'
 import { DrawPaddock } from './map/DrawPaddock'
 import { DraftPaddockLayer } from './map/DraftPaddockLayer'
+import { DrawPath } from './map/DrawPath'
 import { PaddocksLayer } from './map/PaddocksLayer'
 import { PaddockLabelsLayer } from './map/PaddockLabelsLayer'
 import { toLngLat, type LngLat } from './map/geo'
@@ -40,6 +42,7 @@ function App() {
   const { collars, error: collarsError, buyCollars, assignCollars, deleteCollar, moveLocally, forgetPaddock } = useCollars(selectedFarmerId)
   const { shifts, error: shiftsError, startShift } = useShifts(selectedFarmerId)
   const [soundOn, setSoundOn] = useState(false)
+  const [pathDraft, setPathDraft] = useState<{ fromId: string; toId: string } | null>(null)
   useCueSound(cows, soundOn)
   useFarmSounds(map, cows, soundOn)
 
@@ -108,13 +111,26 @@ function App() {
     toast.success(`${selectedPaddock.name} updated`, { description: `${add.length} added · ${remove.length} removed` })
   }
 
-  const moveHerd = async (toPaddockId: string) => {
+  const paddockName = (id: string) => paddocks.find((p) => p.id === id)?.name ?? 'the paddock'
+
+  const startDrawingPath = (toPaddockId: string) => {
     if (!selectedPaddock) return
-    const shift = await startShift(selectedPaddock.id, toPaddockId)
-    moveLocally(shift.collar_ids, toPaddockId)
-    const to = paddocks.find((p) => p.id === toPaddockId)
-    const n = shift.collar_ids.length
-    toast.success(`Moving ${n} cow${n === 1 ? '' : 's'} to ${to?.name ?? 'the new paddock'}`, { description: 'Starts in 10 seconds' })
+    setDrawingPaddock(false)
+    setDraftRing(null)
+    setPathDraft({ fromId: selectedPaddock.id, toId: toPaddockId })
+  }
+
+  const handlePathDrawn = async (path: LngLat[]) => {
+    if (!pathDraft) return
+    setPathDraft(null)
+    try {
+      const shift = await startShift(pathDraft.fromId, pathDraft.toId, path)
+      moveLocally(shift.collar_ids, pathDraft.toId)
+      const n = shift.collar_ids.length
+      toast.success(`Moving ${n} cow${n === 1 ? '' : 's'} to ${paddockName(pathDraft.toId)}`, { description: 'Starts in 10 seconds' })
+    } catch (err) {
+      toast.error('Could not start the move', { description: err instanceof Error ? err.message : String(err) })
+    }
   }
 
   const addCollars = async (count: number) => {
@@ -143,19 +159,32 @@ function App() {
 
       <SatelliteMap
         initialBounds={INITIAL_BOUNDS}
-        interactiveLayerIds={drawingPaddock ? [] : ['paddocks-fill']}
-        onClick={drawingPaddock ? undefined : handleMapClick}
+        interactiveLayerIds={drawingPaddock || pathDraft ? [] : ['paddocks-fill']}
+        onClick={drawingPaddock || pathDraft ? undefined : handleMapClick}
       >
         <PaddocksLayer paddocks={paddocks} selectedId={selectedPaddockId} />
         {draftRing && <DraftPaddockLayer ring={draftRing} />}
         <CowsLayer cows={cows} />
-        <ShiftLayer shifts={shifts} paddocks={paddocks} />
+        <ShiftLayer shifts={shifts} cows={cows} />
         <PaddockLabelsLayer selectedId={selectedPaddockId} />
         <DrawPaddock active={drawingPaddock} onFinish={handlePaddockDrawn} />
+        <DrawPath active={!!pathDraft} onFinish={handlePathDrawn} />
       </SatelliteMap>
 
       <img src="/logo-96.png" alt="Rancher" className="fixed top-4 left-4 z-10 size-12 rounded-2xl shadow-lg" />
       <SoundToggle on={soundOn} onChange={setSoundOn} />
+
+      {pathDraft && (
+        <div className="fixed top-4 right-[26rem] left-20 z-10 flex items-center gap-3 rounded-2xl border border-white/60 bg-white/85 px-4 py-2.5 text-sm shadow-lg backdrop-blur-xl">
+          <p>
+            Draw the lane: click inside {paddockName(pathDraft.fromId)}, along the lane, and finish inside{' '}
+            {paddockName(pathDraft.toId)} by clicking the last point again or pressing Enter.
+          </p>
+          <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => setPathDraft(null)}>
+            Cancel
+          </Button>
+        </div>
+      )}
 
       <MenuPanel>
         <FarmersSection
@@ -188,7 +217,7 @@ function App() {
             onRename={renameSelectedPaddock}
             onDelete={deleteSelectedPaddock}
             onAssignCollars={saveCollarAssignment}
-            onMoveHerd={moveHerd}
+            onMoveHerd={startDrawingPath}
           />
         )}
         <CollarsSection collars={collars} paddocks={paddocks} canAdd={!!selectedFarmer} onAdd={addCollars} onDelete={removeCollar} />

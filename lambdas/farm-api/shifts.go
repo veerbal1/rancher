@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"slices"
 	"sort"
 	"time"
 
@@ -20,21 +19,31 @@ import (
 )
 
 const (
-	shiftSpeedMS       = 0.5
 	shiftLeadTime      = 10 * time.Second
-	shiftGrace         = time.Minute
+	shiftWalkMS        = 0.8
+	shiftGrace         = 3 * time.Minute
 	maxCollarsPerShift = 99
+	maxPathPoints      = 100
+	defaultLaneWidthM  = 8.0
+	minLaneWidthM      = 3.0
+	maxLaneWidthM      = 30.0
 )
 
+type LineString struct {
+	Type        string      `json:"type"        dynamodbav:"type"`
+	Coordinates [][]float64 `json:"coordinates" dynamodbav:"coordinates"`
+}
+
 type Shift struct {
-	ID            string   `json:"id"              dynamodbav:"id"`
-	FarmerID      string   `json:"farmer_id"       dynamodbav:"farmer_id"`
-	FromPaddockID string   `json:"from_paddock_id" dynamodbav:"from_paddock_id"`
-	ToPaddockID   string   `json:"to_paddock_id"   dynamodbav:"to_paddock_id"`
-	CollarIDs     []string `json:"collar_ids"      dynamodbav:"collar_ids"`
-	StartAt       string   `json:"start_at"        dynamodbav:"start_at"`
-	SpeedMS       float64  `json:"speed_ms"        dynamodbav:"speed_ms"`
-	ExpiresAt     string   `json:"expires_at"      dynamodbav:"expires_at"`
+	ID            string     `json:"id"              dynamodbav:"id"`
+	FarmerID      string     `json:"farmer_id"       dynamodbav:"farmer_id"`
+	FromPaddockID string     `json:"from_paddock_id" dynamodbav:"from_paddock_id"`
+	ToPaddockID   string     `json:"to_paddock_id"   dynamodbav:"to_paddock_id"`
+	CollarIDs     []string   `json:"collar_ids"      dynamodbav:"collar_ids"`
+	Path          LineString `json:"path"            dynamodbav:"path"`
+	WidthM        float64    `json:"width_m"         dynamodbav:"width_m"`
+	StartAt       string     `json:"start_at"        dynamodbav:"start_at"`
+	ExpiresAt     string     `json:"expires_at"      dynamodbav:"expires_at"`
 }
 
 type shiftItem struct {
@@ -47,14 +56,22 @@ func (s Shift) active(now string) bool { return s.ExpiresAt > now }
 
 func createShift(ctx context.Context, farmerID, body string) (events.APIGatewayV2HTTPResponse, error) {
 	var in struct {
-		FromPaddockID string `json:"from_paddock_id"`
-		ToPaddockID   string `json:"to_paddock_id"`
+		FromPaddockID string     `json:"from_paddock_id"`
+		ToPaddockID   string     `json:"to_paddock_id"`
+		Path          LineString `json:"path"`
+		WidthM        float64    `json:"width_m"`
 	}
 	if err := json.Unmarshal([]byte(body), &in); err != nil {
 		return respond(http.StatusBadRequest, errorBody("invalid JSON"))
 	}
 	if in.FromPaddockID == "" || in.ToPaddockID == "" || in.FromPaddockID == in.ToPaddockID {
 		return respond(http.StatusBadRequest, errorBody("from_paddock_id and to_paddock_id must be two different paddocks"))
+	}
+	if in.WidthM == 0 {
+		in.WidthM = defaultLaneWidthM
+	}
+	if in.WidthM < minLaneWidthM || in.WidthM > maxLaneWidthM {
+		return respond(http.StatusBadRequest, errorBody(fmt.Sprintf("width_m must be %.0f-%.0f", minLaneWidthM, maxLaneWidthM)))
 	}
 
 	var rings [][][]float64
@@ -67,6 +84,9 @@ func createShift(ctx context.Context, farmerID, body string) (events.APIGatewayV
 			return respond(http.StatusNotFound, errorBody("paddock not found"))
 		}
 		rings = append(rings, p.Polygon.Coordinates[0])
+	}
+	if msg := validatePath(in.Path, rings[0], rings[1]); msg != "" {
+		return respond(http.StatusBadRequest, errorBody(msg))
 	}
 
 	now := time.Now().UTC()
@@ -94,16 +114,17 @@ func createShift(ctx context.Context, farmerID, body string) (events.APIGatewayV
 	}
 
 	start := now.Add(shiftLeadTime)
-	sweep := time.Duration(wallTravelM(rings[0], rings[1]) / shiftSpeedMS * float64(time.Second))
+	walk := time.Duration(pathLengthM(in.Path.Coordinates) / shiftWalkMS * float64(time.Second))
 	s := Shift{
 		ID:            rand.Text(),
 		FarmerID:      farmerID,
 		FromPaddockID: in.FromPaddockID,
 		ToPaddockID:   in.ToPaddockID,
 		CollarIDs:     collarIDs,
+		Path:          in.Path,
+		WidthM:        in.WidthM,
 		StartAt:       start.Format(time.RFC3339),
-		SpeedMS:       shiftSpeedMS,
-		ExpiresAt:     start.Add(sweep + shiftGrace).Format(time.RFC3339),
+		ExpiresAt:     start.Add(walk + shiftGrace).Format(time.RFC3339),
 	}
 	item, err := attributevalue.MarshalMap(shiftItem{PK: "FARMER#" + farmerID, SK: "SHIFT#" + s.ID, Shift: s})
 	if err != nil {
@@ -195,45 +216,44 @@ func getPaddock(ctx context.Context, farmerID, paddockID string) (*Paddock, erro
 	return &p, nil
 }
 
-func wallTravelM(fromRing, toRing [][]float64) float64 {
+func validatePath(p LineString, from, to [][]float64) string {
+	if p.Type != "LineString" || len(p.Coordinates) < 2 || len(p.Coordinates) > maxPathPoints {
+		return fmt.Sprintf("path must be a GeoJSON LineString with 2 to %d points", maxPathPoints)
+	}
+	for _, pt := range p.Coordinates {
+		if len(pt) != 2 || pt[0] < -180 || pt[0] > 180 || pt[1] < -90 || pt[1] > 90 {
+			return "path has an invalid coordinate"
+		}
+	}
+	if !ringContains(from, p.Coordinates[0]) {
+		return "path must start inside the paddock the herd is leaving"
+	}
+	if !ringContains(to, p.Coordinates[len(p.Coordinates)-1]) {
+		return "path must end inside the destination paddock"
+	}
+	return ""
+}
+
+func ringContains(ring [][]float64, pt []float64) bool {
+	inside := false
+	for i, j := 0, len(ring)-1; i < len(ring); j, i = i, i+1 {
+		a, b := ring[i], ring[j]
+		if (a[1] > pt[1]) != (b[1] > pt[1]) && pt[0] < (b[0]-a[0])*(pt[1]-a[1])/(b[1]-a[1])+a[0] {
+			inside = !inside
+		}
+	}
+	return inside
+}
+
+func pathLengthM(pts [][]float64) float64 {
 	const metresPerDeg = 111_320.0
-	from, to := openRing(fromRing), openRing(toRing)
-	origin, target := ringCenter(from), ringCenter(to)
-	cosLat := math.Cos(origin[1] * math.Pi / 180)
-	metres := func(p []float64) (float64, float64) {
-		return (p[0] - origin[0]) * metresPerDeg * cosLat, (p[1] - origin[1]) * metresPerDeg
+	total := 0.0
+	for i := 1; i < len(pts); i++ {
+		a, b := pts[i-1], pts[i]
+		k := metresPerDeg * math.Cos(a[1]*math.Pi/180)
+		total += math.Hypot((b[0]-a[0])*k, (b[1]-a[1])*metresPerDeg)
 	}
-	dx, dy := metres(target)
-	l := math.Hypot(dx, dy)
-	progress := func(p []float64) float64 {
-		x, y := metres(p)
-		return (x*dx + y*dy) / l
-	}
-
-	startM, stopM := math.Inf(1), math.Inf(1)
-	for _, p := range append(slices.Clone(from), to...) {
-		startM = math.Min(startM, progress(p))
-	}
-	for _, p := range to {
-		stopM = math.Min(stopM, progress(p))
-	}
-	return math.Max(0, stopM-startM)
-}
-
-func openRing(ring [][]float64) [][]float64 {
-	if n := len(ring); n > 1 && ring[0][0] == ring[n-1][0] && ring[0][1] == ring[n-1][1] {
-		return ring[:n-1]
-	}
-	return ring
-}
-
-func ringCenter(pts [][]float64) []float64 {
-	var lng, lat float64
-	for _, p := range pts {
-		lng += p[0]
-		lat += p[1]
-	}
-	return []float64{lng / float64(len(pts)), lat / float64(len(pts))}
+	return total
 }
 
 func collarIDsInPaddock(ctx context.Context, farmerID, paddockID string) ([]string, error) {

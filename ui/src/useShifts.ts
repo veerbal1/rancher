@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { LngLat } from './map/geo'
 
 export type Shift = {
   id: string
@@ -6,8 +7,9 @@ export type Shift = {
   from_paddock_id: string
   to_paddock_id: string
   collar_ids: string[]
+  path: { type: 'LineString'; coordinates: LngLat[] }
+  width_m: number
   start_at: string
-  speed_ms: number
   expires_at: string
 }
 
@@ -34,12 +36,16 @@ export function useShifts(farmerId: string | null) {
     }
   }, [farmerId])
 
-  const startShift = async (fromPaddockId: string, toPaddockId: string): Promise<Shift> => {
+  const startShift = async (fromPaddockId: string, toPaddockId: string, path: LngLat[]): Promise<Shift> => {
     if (!farmerId) throw new Error('no farmer selected')
     const res = await fetch(`${FARM_API_URL}/farmers/${encodeURIComponent(farmerId)}/shifts`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ from_paddock_id: fromPaddockId, to_paddock_id: toPaddockId }),
+      body: JSON.stringify({
+        from_paddock_id: fromPaddockId,
+        to_paddock_id: toPaddockId,
+        path: { type: 'LineString', coordinates: path },
+      }),
     })
     const body = await res.json()
     if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`)
