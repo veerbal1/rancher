@@ -16,14 +16,15 @@ import (
 )
 
 type Cow struct {
-	SimID string  `json:"sim_id" dynamodbav:"sim_id"`
-	Seq   uint64  `json:"seq"    dynamodbav:"seq"`
-	Time  string  `json:"time"   dynamodbav:"time"`
-	CowID string  `json:"cow_id" dynamodbav:"cow_id"`
-	X     float64 `json:"x"      dynamodbav:"x"`
-	Y     float64 `json:"y"      dynamodbav:"y"`
-	State string  `json:"state"  dynamodbav:"state"`
-	Level string  `json:"level"  dynamodbav:"level"`
+	FarmerID  string  `json:"farmer_id"  dynamodbav:"farmer_id"`
+	Seq       uint64  `json:"seq"        dynamodbav:"seq"`
+	Time      string  `json:"time"       dynamodbav:"time"`
+	CollarID  string  `json:"collar_id"  dynamodbav:"collar_id"`
+	PaddockID string  `json:"paddock_id" dynamodbav:"paddock_id"`
+	Lat       float64 `json:"lat"        dynamodbav:"lat"`
+	Lng       float64 `json:"lng"        dynamodbav:"lng"`
+	State     string  `json:"state"      dynamodbav:"state"`
+	Level     string  `json:"level"      dynamodbav:"level"`
 }
 
 var (
@@ -41,16 +42,16 @@ func main() {
 }
 
 func handle(ctx context.Context, req events.LambdaFunctionURLRequest) (events.LambdaFunctionURLResponse, error) {
-	farm := req.QueryStringParameters["farm"]
-	if farm == "" {
-		return events.LambdaFunctionURLResponse{StatusCode: 400, Body: `{"error":"farm is required"}`}, nil
+	farmer := req.QueryStringParameters["farmer"]
+	if farmer == "" {
+		return events.LambdaFunctionURLResponse{StatusCode: 400, Body: `{"error":"farmer is required"}`}, nil
 	}
 
 	out, err := db.Query(ctx, &dynamodb.QueryInput{
 		TableName:              aws.String(table),
-		KeyConditionExpression: aws.String("sim_id = :farm"),
+		KeyConditionExpression: aws.String("farmer_id = :farmer"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":farm": &types.AttributeValueMemberS{Value: farm},
+			":farmer": &types.AttributeValueMemberS{Value: farmer},
 		},
 	})
 	if err != nil {

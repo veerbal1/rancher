@@ -52,16 +52,16 @@ resource "aws_lambda_event_source_mapping" "ingest" {
 resource "aws_dynamodb_table" "cow_positions" {
   name         = "cow-positions"
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "sim_id"
-  range_key    = "cow_id"
+  hash_key     = "farmer_id"
+  range_key    = "collar_id"
 
   attribute {
-    name = "sim_id"
+    name = "farmer_id"
     type = "S"
   }
 
   attribute {
-    name = "cow_id"
+    name = "collar_id"
     type = "S"
   }
 }

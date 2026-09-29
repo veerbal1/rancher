@@ -15,14 +15,15 @@ import (
 )
 
 type Event struct {
-	SimID string  `json:"sim_id" dynamodbav:"sim_id"`
-	Seq   uint64  `json:"seq"    dynamodbav:"seq"`
-	Time  string  `json:"time"   dynamodbav:"time"`
-	CowID string  `json:"cow_id" dynamodbav:"cow_id"`
-	X     float64 `json:"x"      dynamodbav:"x"`
-	Y     float64 `json:"y"      dynamodbav:"y"`
-	State string  `json:"state"  dynamodbav:"state"`
-	Level string  `json:"level"  dynamodbav:"level"`
+	FarmerID  string  `json:"farmer_id"  dynamodbav:"farmer_id"`
+	Seq       uint64  `json:"seq"        dynamodbav:"seq"`
+	Time      string  `json:"time"       dynamodbav:"time"`
+	CollarID  string  `json:"collar_id"  dynamodbav:"collar_id"`
+	PaddockID string  `json:"paddock_id" dynamodbav:"paddock_id"`
+	Lat       float64 `json:"lat"        dynamodbav:"lat"`
+	Lng       float64 `json:"lng"        dynamodbav:"lng"`
+	State     string  `json:"state"      dynamodbav:"state"`
+	Level     string  `json:"level"      dynamodbav:"level"`
 }
 
 var (
@@ -40,10 +41,15 @@ func main() {
 }
 
 func handle(ctx context.Context, in events.KinesisEvent) error {
+	saved := 0
 	for _, r := range in.Records {
 		var e Event
 		if err := json.Unmarshal(r.Kinesis.Data, &e); err != nil {
 			log.Printf("skip bad record: %v", err)
+			continue
+		}
+		if e.FarmerID == "" || e.CollarID == "" {
+			log.Printf("skip record without farmer_id or collar_id: %s", r.Kinesis.Data)
 			continue
 		}
 		item, err := attributevalue.MarshalMap(e)
@@ -56,7 +62,8 @@ func handle(ctx context.Context, in events.KinesisEvent) error {
 		}); err != nil {
 			return err
 		}
+		saved++
 	}
-	log.Printf("saved %d records", len(in.Records))
+	log.Printf("saved %d of %d records", saved, len(in.Records))
 	return nil
 }
