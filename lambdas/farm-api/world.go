@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -32,6 +33,7 @@ type WorldFarm struct {
 	Location  *Location      `json:"location"`
 	Paddocks  []WorldPaddock `json:"paddocks"`
 	Collars   []WorldCollar  `json:"collars"`
+	Shifts    []Shift        `json:"shifts"`
 	createdAt string
 }
 
@@ -39,11 +41,12 @@ func getWorld(ctx context.Context) (events.APIGatewayV2HTTPResponse, error) {
 	farms := map[string]*WorldFarm{}
 	farm := func(pk string) *WorldFarm {
 		if farms[pk] == nil {
-			farms[pk] = &WorldFarm{Paddocks: []WorldPaddock{}, Collars: []WorldCollar{}}
+			farms[pk] = &WorldFarm{Paddocks: []WorldPaddock{}, Collars: []WorldCollar{}, Shifts: []Shift{}}
 		}
 		return farms[pk]
 	}
 
+	now := time.Now().UTC().Format(time.RFC3339)
 	pages := dynamodb.NewScanPaginator(db, &dynamodb.ScanInput{
 		TableName:      aws.String(table),
 		ConsistentRead: aws.Bool(true),
@@ -78,6 +81,14 @@ func getWorld(ctx context.Context) (events.APIGatewayV2HTTPResponse, error) {
 					return events.APIGatewayV2HTTPResponse{}, err
 				}
 				f.Collars = append(f.Collars, c)
+			case strings.HasPrefix(sk, "SHIFT#"):
+				var s Shift
+				if err := attributevalue.UnmarshalMap(item, &s); err != nil {
+					return events.APIGatewayV2HTTPResponse{}, err
+				}
+				if s.active(now) {
+					f.Shifts = append(f.Shifts, s)
+				}
 			}
 		}
 	}
