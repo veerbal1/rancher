@@ -69,11 +69,22 @@ export function CollarsSection({ collars, paddocks, canAdd, onAdd, onDelete }: P
       {collars.length > 0 && (
         <ul className="grid grid-cols-2 gap-1.5">
           {collars.map((c) => (
-            <li key={c.id} className="flex items-center gap-1 rounded-lg bg-white/60 py-1 pr-1 pl-3 text-sm">
-              <span className="shrink-0">{c.name}</span>
-              <span className="ml-auto truncate text-xs text-muted-foreground">
-                {paddockName(c.paddock_id) ?? 'Unassigned'}
-              </span>
+            <li key={c.id} className="flex items-center gap-1.5 rounded-lg bg-white/60 py-1 pr-1 pl-2 text-sm">
+              <div className="relative shrink-0">
+                <img src="/collar.png" alt="" className="size-7" />
+                {c.paddock_id ? (
+                  <span className="absolute -top-0.5 -right-0.5 flex size-2.5" title="Live">
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex size-2.5 rounded-full border border-white bg-emerald-500" />
+                  </span>
+                ) : (
+                  <span className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full border border-white bg-zinc-400" title="Inactive" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1 leading-tight">
+                <p>{c.name}</p>
+                <p className="truncate text-xs text-muted-foreground">{paddockName(c.paddock_id) ?? 'Unassigned'}</p>
+              </div>
               <Button
                 variant="ghost"
                 size="icon-xs"
