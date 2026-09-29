@@ -16,12 +16,14 @@ import { useFarmers, type Location } from './useFarmers'
 import { usePaddocks } from './usePaddocks'
 import { useCollars, type Collar } from './useCollars'
 import { useShifts } from './useShifts'
+import { useCueSound } from './useCueSound'
 import { MenuPanel } from './components/MenuPanel'
 import { FarmersSection } from './components/FarmersSection'
 import { SelectedFarmer } from './components/SelectedFarmer'
 import { PaddocksSection } from './components/PaddocksSection'
 import { PaddockDetail } from './components/PaddockDetail'
 import { CollarsSection } from './components/CollarsSection'
+import { SoundToggle } from './components/SoundToggle'
 
 const INITIAL_BOUNDS: [LngLat, LngLat] = [toLngLat(-40, -40), toLngLat(140, 140)]
 
@@ -36,6 +38,8 @@ function App() {
   const [selectedPaddockId, setSelectedPaddockId] = useState<string | null>(null)
   const { collars, error: collarsError, buyCollars, assignCollars, deleteCollar, moveLocally, forgetPaddock } = useCollars(selectedFarmerId)
   const { shifts, error: shiftsError, startShift } = useShifts(selectedFarmerId)
+  const [soundOn, setSoundOn] = useState(false)
+  useCueSound(cows, soundOn)
 
   const selectedFarmer = farmers.find((f) => f.id === selectedFarmerId)
   const selectedPaddock = paddocks.find((p) => p.id === selectedPaddockId)
@@ -149,6 +153,7 @@ function App() {
       </SatelliteMap>
 
       <img src="/logo-96.png" alt="Rancher" className="fixed top-4 left-4 z-10 size-12 rounded-2xl shadow-lg" />
+      <SoundToggle on={soundOn} onChange={setSoundOn} />
 
       <MenuPanel>
         <FarmersSection
