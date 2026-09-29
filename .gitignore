@@ -8,3 +8,9 @@ infra/*.tfstate.*
 
 # Lambda builds
 build/
+
+skills
+skills-lock.json
+
+# Terraform plans
+infra/*.tfplan
