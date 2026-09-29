@@ -1,7 +1,10 @@
-import { useMemo } from 'react'
-import { Source, Layer } from '@vis.gl/react-maplibre'
+import { useEffect, useMemo, useState } from 'react'
+import type { ExpressionSpecification } from 'maplibre-gl'
+import { Source, Layer, useMap } from '@vis.gl/react-maplibre'
 import type { FeatureCollection, Point } from 'geojson'
 import type { Cow } from '../useCows'
+
+const COW_IMAGE = 'cow'
 
 const COLORS: Record<string, string> = {
   inside: '#2e9e5b',
@@ -9,7 +12,38 @@ const COLORS: Record<string, string> = {
   breached: '#d64545',
 }
 
+const stateColor: ExpressionSpecification = [
+  'match',
+  ['get', 'state'],
+  'inside', COLORS.inside,
+  'warning', COLORS.warning,
+  'breached', COLORS.breached,
+  '#888',
+]
+
 export function CowsLayer({ cows }: { cows: Cow[] }) {
+  const { current: mapRef } = useMap()
+  const [imageReady, setImageReady] = useState(false)
+
+  useEffect(() => {
+    const map = mapRef?.getMap()
+    if (!map) return
+    if (map.hasImage(COW_IMAGE)) {
+      setImageReady(true)
+      return
+    }
+
+    let cancelled = false
+    map.loadImage('/cow.png').then(({ data }) => {
+      if (cancelled) return
+      if (!map.hasImage(COW_IMAGE)) map.addImage(COW_IMAGE, data, { pixelRatio: 2 })
+      setImageReady(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [mapRef])
+
   const points = useMemo<FeatureCollection<Point>>(
     () => ({
       type: 'FeatureCollection',
@@ -25,22 +59,30 @@ export function CowsLayer({ cows }: { cows: Cow[] }) {
   return (
     <Source id="cows" type="geojson" data={points}>
       <Layer
-        id="cow-dots"
+        id="cow-rings"
         type="circle"
         paint={{
-          'circle-radius': 6,
-          'circle-color': [
-            'match',
-            ['get', 'state'],
-            'inside', COLORS.inside,
-            'warning', COLORS.warning,
-            'breached', COLORS.breached,
-            '#888',
-          ],
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 14, 7, 17, 14, 20, 28],
+          'circle-color': stateColor,
+          'circle-opacity': 0.35,
           'circle-stroke-width': 2,
-          'circle-stroke-color': '#ffffff',
+          'circle-stroke-color': stateColor,
         }}
       />
+      {imageReady && (
+        <Layer
+          id="cow-icons"
+          type="symbol"
+          layout={{
+            'icon-image': COW_IMAGE,
+            'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.25, 17, 0.5, 20, 1],
+            'icon-rotate': ['get', 'heading'],
+            'icon-rotation-alignment': 'map',
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+          }}
+        />
+      )}
     </Source>
   )
 }
