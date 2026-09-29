@@ -3,6 +3,7 @@ import type { ExpressionSpecification } from 'maplibre-gl'
 import { Source, Layer, useMap } from '@vis.gl/react-maplibre'
 import type { FeatureCollection, Point } from 'geojson'
 import type { Cow } from '../useCows'
+import { useSmoothCows } from './useSmoothCows'
 
 const COW_IMAGE = 'cow'
 
@@ -24,6 +25,7 @@ const stateColor: ExpressionSpecification = [
 export function CowsLayer({ cows }: { cows: Cow[] }) {
   const { current: mapRef } = useMap()
   const [imageReady, setImageReady] = useState(false)
+  const shown = useSmoothCows(cows)
 
   useEffect(() => {
     const map = mapRef?.getMap()
@@ -47,13 +49,13 @@ export function CowsLayer({ cows }: { cows: Cow[] }) {
   const points = useMemo<FeatureCollection<Point>>(
     () => ({
       type: 'FeatureCollection',
-      features: cows.map((c) => ({
+      features: shown.map((c) => ({
         type: 'Feature',
         properties: { collar_id: c.collar_id, state: c.state, heading: c.heading },
         geometry: { type: 'Point', coordinates: [c.lng, c.lat] },
       })),
     }),
-    [cows],
+    [shown],
   )
 
   return (
