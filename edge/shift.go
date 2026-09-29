@@ -9,6 +9,7 @@ const (
 	cueStartRad = 60 * math.Pi / 180
 	cueStopRad  = 30 * math.Pi / 180
 	guideRate   = 0.6
+	followRate  = 0.3
 	lookaheadM  = 5.0
 	driftStartM = 1.5
 	driftStopM  = 1.0

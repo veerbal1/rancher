@@ -84,6 +84,7 @@ func (col *Collar) SetFence(paddockID string, fence Polygon) {
 	col.PaddockID = paddockID
 	col.fence = fence
 	col.shift = nil
+	col.cow.Wander = grazeWander
 }
 
 func (col *Collar) StartShift(s *Shift) {
@@ -168,11 +169,18 @@ func (col *Collar) followShift(now time.Time) {
 	lng, lat := col.cow.Lng, col.cow.Lat
 	if s.To.Evaluate(lng, lat, col.warnM) == ZoneInside {
 		col.fence, col.shift, col.guiding = s.To, nil, false
+		col.cow.Wander = grazeWander
 		return
 	}
 
 	col.fence = s.Fence
-	col.guide(s.Guide(lng, lat))
+	targetLng, targetLat, driftM := s.Guide(lng, lat)
+	col.cow.Wander = grazeWander
+	if !s.From.Contains(lng, lat) && !s.To.Contains(lng, lat) {
+		col.cow.Wander = laneWander
+		col.cow.SteerTo(targetLng, targetLat, followRate)
+	}
+	col.guide(targetLng, targetLat, driftM)
 }
 
 func (col *Collar) guide(lng, lat, driftM float64) {

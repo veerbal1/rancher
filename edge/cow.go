@@ -5,13 +5,18 @@ import (
 	"math/rand"
 )
 
-const metresPerDeg = 111_320.0
+const (
+	metresPerDeg = 111_320.0
+	grazeWander  = 0.4
+	laneWander   = 0.08
+)
 
 type Cow struct {
 	Lat     float64
 	Lng     float64
 	Heading float64
 	Speed   float64
+	Wander  float64
 	rng     *rand.Rand
 }
 
@@ -21,12 +26,13 @@ func NewCow(lng, lat float64, rng *rand.Rand) *Cow {
 		Lng:     lng,
 		Heading: rng.Float64() * 2 * math.Pi,
 		Speed:   1,
+		Wander:  grazeWander,
 		rng:     rng,
 	}
 }
 
 func (c *Cow) Step(dt float64) {
-	c.Heading = wrap(c.Heading + (c.rng.Float64()*2-1)*0.4)
+	c.Heading = wrap(c.Heading + (c.rng.Float64()*2-1)*c.Wander)
 
 	d := c.Speed * dt
 	c.Lat += d * math.Cos(c.Heading) / metresPerDeg

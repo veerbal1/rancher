@@ -260,3 +260,32 @@ func TestReconcileStartsShiftOnlyWhenPlanned(t *testing.T) {
 		t.Errorf("unplanned move: result %+v, shifting %v", r, col.shift != nil)
 	}
 }
+
+func TestCowsWalkTheLaneWithFewCues(t *testing.T) {
+	from, to := squareAt(0, 0, 100), squareAt(300, 200, 100)
+	path := pathM([2]float64{50, 50}, [2]float64{200, 50}, [2]float64{200, 250}, [2]float64{350, 250})
+	t0 := time.Unix(1_000, 0)
+	shift := NewShift("B", from, to, path, 8, t0.Add(10*time.Second))
+	total, laneSecs := 0, 0
+	for seed := int64(1); seed <= 10; seed++ {
+		rng := rand.New(rand.NewSource(seed))
+		lng, lat := from.RandomPoint(rng)
+		col := NewCollar("C", int(seed), "A", from, NewCow(lng, lat, rng), warnM)
+		col.StartShift(shift)
+		prev := CueNone
+		for tick := 1; tick <= 1500 && col.shift != nil; tick++ {
+			col.Step(t0.Add(time.Duration(tick)*time.Second), 1)
+			inLane := !from.Contains(col.cow.Lng, col.cow.Lat) && !to.Contains(col.cow.Lng, col.cow.Lat)
+			if inLane {
+				laneSecs++
+				if l := col.Level(); l != CueNone && prev == CueNone {
+					total++
+				}
+			}
+			prev = col.Level()
+		}
+	}
+	if total*120 > laneSecs {
+		t.Errorf("%d cues over %d cow-seconds in the lane, want at most one per 2 minutes per cow", total, laneSecs)
+	}
+}
