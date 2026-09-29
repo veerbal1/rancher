@@ -38,6 +38,10 @@ func (c *Cow) TurnAround() {
 }
 
 func (c *Cow) SteerTo(lng, lat, rate float64) {
+	c.Heading = wrap(c.Heading + rate*c.BearingDiff(lng, lat))
+}
+
+func (c *Cow) BearingDiff(lng, lat float64) float64 {
 	dx := (lng - c.Lng) * metresPerDeg * math.Cos(c.Lat*math.Pi/180)
 	dy := (lat - c.Lat) * metresPerDeg
 	diff := math.Atan2(dx, dy) - c.Heading
@@ -48,8 +52,7 @@ func (c *Cow) SteerTo(lng, lat, rate float64) {
 	for diff < -math.Pi {
 		diff += 2 * math.Pi
 	}
-
-	c.Heading = wrap(c.Heading + rate*diff)
+	return diff
 }
 
 func wrap(h float64) float64 {

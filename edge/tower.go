@@ -63,9 +63,9 @@ func (t *Tower) Reconcile(f WorldFarm) ReconcileResult {
 			t.collars[c.ID] = NewCollar(c.ID, c.Number, *c.PaddockID, fence, NewCow(lng, lat, rng), warnM)
 			r.Added++
 		case col.shift != nil && col.shift.ToID == *c.PaddockID:
-		case col.PaddockID != *c.PaddockID || !slices.Equal(col.fence, fence):
+		case col.PaddockID != *c.PaddockID || !sameFence(col.fence, fence):
 			if s, from := findShift(f.Shifts, col.PaddockID, *c.PaddockID), fences[col.PaddockID]; s != nil && from != nil {
-				col.StartShift(NewShift(s.ToPaddockID, from, fence, s.StartAt, s.SpeedMS))
+				col.StartShift(NewShift(s.ToPaddockID, from, fence, s.PathPoints(), s.WidthM, s.StartAt))
 				r.Shifted++
 			} else {
 				col.SetFence(*c.PaddockID, fence)
@@ -106,6 +106,11 @@ func (t *Tower) Tick(now time.Time, emit func(Event)) {
 			Level:     col.Level(),
 		})
 	}
+}
+
+func sameFence(f Fence, p Polygon) bool {
+	current, ok := f.(Polygon)
+	return ok && slices.Equal(current, p)
 }
 
 func findShift(shifts []WorldShift, from, to string) *WorldShift {

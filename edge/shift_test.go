@@ -3,7 +3,6 @@ package main
 import (
 	"math"
 	"math/rand"
-	"slices"
 	"testing"
 	"time"
 )
@@ -12,90 +11,128 @@ func squareAt(x, y, sizeM float64) Polygon {
 	return polygonM([2]float64{x, y}, [2]float64{x + sizeM, y}, [2]float64{x + sizeM, y + sizeM}, [2]float64{x, y + sizeM})
 }
 
-func TestConvexHullWrapsBothPaddocks(t *testing.T) {
-	from, to := squareAt(0, 0, 100), squareAt(300, 50, 100)
-	hull := convexHull(append(slices.Clone(from), to...))
+func pathM(pts ...[2]float64) []Point {
+	out := make([]Point, len(pts))
+	for i, xy := range pts {
+		out[i] = at(xy[0], xy[1])
+	}
+	return out
+}
 
-	for _, p := range []Point{at(50, 50), at(350, 100), at(200, 75)} {
-		if !hull.Contains(p.Lng, p.Lat) {
-			t.Errorf("hull should contain %v", p)
+func metresApart(a, b Point) float64 {
+	k := metresPerDeg * math.Cos(a.Lat*math.Pi/180)
+	return math.Hypot((a.Lng-b.Lng)*k, (a.Lat-b.Lat)*metresPerDeg)
+}
+
+func TestGateIsWherePathLeavesOldPaddock(t *testing.T) {
+	lane := Lane{Path: pathM([2]float64{50, 50}, [2]float64{150, 50}, [2]float64{150, 200}), HalfWidthM: 4}
+	if d := metresApart(lane.Gate(squareAt(0, 0, 100)), at(100, 50)); d > 0.5 {
+		t.Errorf("gate is %.1f m from the east edge crossing", d)
+	}
+
+	outside := Lane{Path: pathM([2]float64{150, 50}, [2]float64{250, 50}), HalfWidthM: 4}
+	if d := metresApart(outside.Gate(squareAt(0, 0, 100)), at(150, 50)); d > 0.5 {
+		t.Errorf("a path that never leaves the paddock should use its first point, got %.1f m away", d)
+	}
+}
+
+func TestMoveFenceZones(t *testing.T) {
+	fence := NewShift("B", squareAt(0, 0, 100), squareAt(300, 0, 100), nil, 8, time.Time{}).Fence
+
+	tests := []struct {
+		name string
+		x, y float64
+		want Zone
+	}{
+		{"middle of old paddock", 50, 50, ZoneInside},
+		{"old paddock edge away from the gate", 50, 1, ZoneWarning},
+		{"old paddock edge at the gate", 99, 50, ZoneInside},
+		{"lane centre", 200, 50, ZoneInside},
+		{"lane edge", 200, 53, ZoneWarning},
+		{"beside the lane", 200, 60, ZoneOutside},
+		{"new paddock", 350, 50, ZoneInside},
+	}
+	for _, tt := range tests {
+		p := at(tt.x, tt.y)
+		if got := fence.Evaluate(p.Lng, p.Lat, warnM); got != tt.want {
+			t.Errorf("%s: zone %d, want %d", tt.name, got, tt.want)
 		}
 	}
-	if gap := at(200, 5); hull.Contains(gap.Lng, gap.Lat) {
-		t.Errorf("hull should not contain the corner gap %v", gap)
+}
+
+func TestGuidanceStartsPast60AndStopsUnder30(t *testing.T) {
+	start := at(0, 0)
+	target := at(0, 100)
+	col := NewCollar("C", 1, "A", squareAt(-50, -50, 200), NewCow(start.Lng, start.Lat, rand.New(rand.NewSource(1))), warnM)
+
+	steps := []struct {
+		offDeg float64
+		want   bool
+	}{
+		{45, false},
+		{90, true},
+		{45, true},
+		{20, false},
+		{45, false},
 	}
-	if len(hull) != 6 {
-		t.Errorf("hull has %d corners, want 6", len(hull))
+	for _, s := range steps {
+		col.cow.Heading = s.offDeg * math.Pi / 180
+		col.guide(target.Lng, target.Lat)
+		if col.guiding != s.want {
+			t.Errorf("heading %v° off: guiding %v, want %v", s.offDeg, col.guiding, s.want)
+		}
 	}
 }
 
-func TestWallSweepsFromBackToFront(t *testing.T) {
-	start := time.Unix(1_000, 0)
-	s := NewShift("B", squareAt(0, 0, 100), squareAt(300, 0, 100), start, 1)
-
-	back, front := at(1, 50), at(399, 50)
-	if s.Behind(back.Lng, back.Lat, start) {
-		t.Error("before the start nothing should be behind the wall")
-	}
-	if !s.Behind(back.Lng, back.Lat, start.Add(5*time.Second)) || s.Behind(front.Lng, front.Lat, start.Add(5*time.Second)) {
-		t.Error("after 5s only the back of the old paddock should be behind the wall")
-	}
-	if got := s.WallM(start.Add(time.Hour)); math.Abs(got-250) > 0.5 {
-		t.Errorf("wall stopped %.1f m from the old centre, want 250 (the new paddock's near edge)", got)
-	}
-	if !s.Behind(front.Lng, front.Lat, start.Add(time.Hour)) {
-		t.Error("once the wall stops, every cow still shifting should be pushed")
-	}
-}
-
-func TestHerdShiftArrivesWithoutBreaching(t *testing.T) {
+func TestHerdLeavesThroughGateAndArrives(t *testing.T) {
 	from, to := squareAt(0, 0, 100), squareAt(300, 50, 100)
 	t0 := time.Unix(1_000, 0)
 	start := t0.Add(10 * time.Second)
+	shift := NewShift("B", from, to, nil, 8, start)
+	const deadline = 900
 
-	shift := NewShift("B", from, to, start, 0.5)
-	deadline := int((shift.stopM-shift.startM)/shift.SpeedMS) + 60
-	const maxLagM = 10.0
-
+	type progress struct {
+		exited  bool
+		arrived int
+	}
 	var herd []*Collar
+	seen := map[int]*progress{}
 	for seed := int64(1); seed <= 10; seed++ {
 		rng := rand.New(rand.NewSource(seed))
 		lng, lat := from.RandomPoint(rng)
 		col := NewCollar("C", int(seed), "A", from, NewCow(lng, lat, rng), warnM)
 		col.StartShift(shift)
 		herd = append(herd, col)
+		seen[col.Number] = &progress{}
 	}
 
-	arrived := map[int]int{}
-	for tick := 1; tick <= 1800 && len(arrived) < len(herd); tick++ {
+	for tick := 1; tick <= deadline+10; tick++ {
 		now := t0.Add(time.Duration(tick) * time.Second)
 		for _, col := range herd {
 			col.Step(now, 1)
+			p := seen[col.Number]
 			if col.State() == Breached {
 				t.Fatalf("cow %d breached at tick %d", col.Number, tick)
 			}
-			if lag := shift.WallM(now) - shift.progress(col.cow.Lng, col.cow.Lat); col.shift != nil && lag > maxLagM {
-				t.Fatalf("cow %d fell %.1f m behind the wall at tick %d", col.Number, lag, tick)
-			}
-			if _, done := arrived[col.Number]; !done && col.shift == nil {
-				if now.Before(start) {
-					t.Fatalf("cow %d arrived before the shift started", col.Number)
+			if !p.exited && !from.Contains(col.cow.Lng, col.cow.Lat) {
+				p.exited = true
+				if d := metresApart(Point{Lng: col.cow.Lng, Lat: col.cow.Lat}, shift.Gate); d > shift.Lane.HalfWidthM+1 {
+					t.Errorf("cow %d left the old paddock %.1f m from the gate", col.Number, d)
 				}
-				arrived[col.Number] = tick
+			}
+			if p.arrived == 0 && col.shift == nil {
+				p.arrived = tick - 10
 			}
 		}
 	}
 
 	for _, col := range herd {
-		tick, ok := arrived[col.Number]
-		if !ok || tick-10 > deadline {
-			t.Errorf("cow %d did not arrive within %ds of the start", col.Number, deadline)
+		p := seen[col.Number]
+		if p.arrived == 0 {
+			t.Errorf("cow %d did not arrive within %ds", col.Number, deadline)
 			continue
 		}
-		if col.PaddockID != "B" || !to.Contains(col.cow.Lng, col.cow.Lat) {
-			t.Errorf("cow %d: paddock %s, inside new paddock %v", col.Number, col.PaddockID, to.Contains(col.cow.Lng, col.cow.Lat))
-		}
-		t.Logf("cow %d arrived after %ds", col.Number, tick-10)
+		t.Logf("cow %d arrived after %ds", col.Number, p.arrived)
 	}
 }
 
@@ -120,7 +157,7 @@ func TestReconcileStartsShiftOnlyWhenPlanned(t *testing.T) {
 			Shifts:   shifts,
 		}
 	}
-	shiftAB := WorldShift{ID: "S1", FromPaddockID: "A", ToPaddockID: "B", StartAt: time.Unix(1_000, 0), SpeedMS: 0.5}
+	shiftAB := WorldShift{ID: "S1", FromPaddockID: "A", ToPaddockID: "B", StartAt: time.Unix(1_000, 0)}
 
 	tower := NewTower("F")
 	tower.Reconcile(farm("A"))

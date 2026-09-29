@@ -1,6 +1,9 @@
 package main
 
-import "time"
+import (
+	"math"
+	"time"
+)
 
 type State int
 
@@ -60,7 +63,7 @@ type Collar struct {
 	Number    int
 	PaddockID string
 	cow       *Cow
-	fence     Polygon
+	fence     Fence
 	warnM     float64
 
 	state  State
@@ -69,8 +72,8 @@ type Collar struct {
 	calm   int
 	gaveUp bool
 
-	shift  *Shift
-	pushed bool
+	shift   *Shift
+	guiding bool
 }
 
 func NewCollar(id string, number int, paddockID string, fence Polygon, c *Cow, warnM float64) *Collar {
@@ -96,7 +99,7 @@ func (col *Collar) State() State {
 }
 
 func (col *Collar) Level() Cue {
-	if col.level == CueNone && col.pushed {
+	if col.level == CueNone && col.guiding {
 		return CueAudio
 	}
 	return col.level
@@ -156,28 +159,37 @@ func (col *Collar) Step(now time.Time, dt float64) {
 }
 
 func (col *Collar) followShift(now time.Time) {
-	col.pushed = false
 	s := col.shift
 	if s == nil || now.Before(s.Start) {
+		col.guiding = false
 		return
 	}
 
 	lng, lat := col.cow.Lng, col.cow.Lat
 	if s.To.Evaluate(lng, lat, col.warnM) == ZoneInside {
-		col.fence, col.shift = s.To, nil
+		col.fence, col.shift, col.guiding = s.To, nil, false
 		return
 	}
 
-	col.fence = s.Hull
-	if s.Behind(lng, lat, now) {
-		col.pushed = true
-		toLng, toLat := s.To.Center()
-		col.cow.SteerTo(toLng, toLat, pushRate)
+	col.fence = s.Fence
+	col.guide(s.Target(lng, lat))
+}
+
+func (col *Collar) guide(lng, lat float64) {
+	off := math.Abs(col.cow.BearingDiff(lng, lat))
+	switch {
+	case col.guiding && off < cueStopRad:
+		col.guiding = false
+	case !col.guiding && off > cueStartRad:
+		col.guiding = true
+	}
+	if col.guiding {
+		col.cow.SteerTo(lng, lat, guideRate)
 	}
 }
 
 func (col *Collar) respond() {
-	lng, lat := col.fence.Center()
+	lng, lat := col.fence.Home(col.cow.Lng, col.cow.Lat)
 	switch col.level {
 	case CueAudio:
 		col.cow.SteerTo(lng, lat, 0.3)

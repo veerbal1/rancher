@@ -55,7 +55,21 @@ type WorldShift struct {
 	FromPaddockID string    `json:"from_paddock_id"`
 	ToPaddockID   string    `json:"to_paddock_id"`
 	StartAt       time.Time `json:"start_at"`
-	SpeedMS       float64   `json:"speed_ms"`
+	Path          *struct {
+		Coordinates [][2]float64 `json:"coordinates"`
+	} `json:"path"`
+	WidthM float64 `json:"width_m"`
+}
+
+func (s WorldShift) PathPoints() []Point {
+	if s.Path == nil {
+		return nil
+	}
+	pts := make([]Point, 0, len(s.Path.Coordinates))
+	for _, c := range s.Path.Coordinates {
+		pts = append(pts, Point{Lng: c[0], Lat: c[1]})
+	}
+	return pts
 }
 
 func fetchWorld(ctx context.Context, cfg aws.Config) (World, error) {
