@@ -3,6 +3,8 @@ import type { MapRef } from '@vis.gl/react-maplibre'
 import type { Cow } from './useCows'
 
 const MOO_EVERY_S = { grazing: [10, 25], moving: [4, 10] }
+const BELL_VOLUME = 0.4
+const MOO_VOLUME = 0.4
 
 const between = ([min, max]: number[]) => min + Math.random() * (max - min)
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
@@ -36,7 +38,7 @@ export function useFarmSounds(map: MapRef | undefined, cows: Cow[], enabled: boo
 
     const updateBells = () => {
       const n = herd.current.length
-      const level = n === 0 ? 0 : nearness(map.getZoom()) * Math.min(1, 0.3 + n / 10) * (moving() ? 0.6 : 0.2)
+      const level = n === 0 ? 0 : nearness(map.getZoom()) * Math.min(1, 0.3 + n / 10) * (moving() ? 0.6 : 0.2) * BELL_VOLUME
       bellGain.gain.setTargetAtTime(level, ctx.currentTime, 0.8)
     }
 
@@ -52,7 +54,7 @@ export function useFarmSounds(map: MapRef | undefined, cows: Cow[], enabled: boo
         source.buffer = moo
         source.playbackRate.value = between([0.85, 1.12])
         const gain = ctx.createGain()
-        gain.gain.value = nearness(map.getZoom()) * (onScreen ? 0.7 : 0.25) * between([0.7, 1])
+        gain.gain.value = nearness(map.getZoom()) * (onScreen ? 0.7 : 0.25) * between([0.7, 1]) * MOO_VOLUME
         const pan = ctx.createStereoPanner()
         pan.pan.value = clamp((x / w) * 2 - 1, -1, 1) * 0.8
         source.connect(gain).connect(pan).connect(ctx.destination)
