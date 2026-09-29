@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const pushRate = 0.3
+const pushRate = 0.6
 
 type Shift struct {
 	ToID    string
@@ -19,7 +19,7 @@ type Shift struct {
 	origin     Point
 	dirX, dirY float64
 	startM     float64
-	endM       float64
+	stopM      float64
 }
 
 func NewShift(toID string, from, to Polygon, start time.Time, speedMS float64) *Shift {
@@ -38,22 +38,25 @@ func NewShift(toID string, from, to Polygon, start time.Time, speedMS float64) *
 	l := math.Hypot(dx, dy)
 	s.dirX, s.dirY = dx/l, dy/l
 
-	s.startM, s.endM = math.Inf(1), math.Inf(-1)
+	s.startM, s.stopM = math.Inf(1), math.Inf(1)
 	for _, p := range hull {
-		m := s.progress(p.Lng, p.Lat)
-		s.startM = math.Min(s.startM, m)
-		s.endM = math.Max(s.endM, m)
+		s.startM = math.Min(s.startM, s.progress(p.Lng, p.Lat))
 	}
+	for _, p := range to {
+		s.stopM = math.Min(s.stopM, s.progress(p.Lng, p.Lat))
+	}
+	s.stopM = math.Max(s.startM, s.stopM)
 	return s
 }
 
 func (s *Shift) WallM(now time.Time) float64 {
 	elapsed := math.Max(0, now.Sub(s.Start).Seconds())
-	return math.Min(s.endM, s.startM+s.SpeedMS*elapsed)
+	return math.Min(s.stopM, s.startM+s.SpeedMS*elapsed)
 }
 
 func (s *Shift) Behind(lng, lat float64, now time.Time) bool {
-	return s.progress(lng, lat) < s.WallM(now)
+	wall := s.WallM(now)
+	return wall >= s.stopM || s.progress(lng, lat) < wall
 }
 
 func (s *Shift) progress(lng, lat float64) float64 {

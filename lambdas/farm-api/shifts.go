@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"slices"
 	"sort"
 	"time"
 
@@ -19,9 +20,9 @@ import (
 )
 
 const (
-	shiftSpeedMS       = 1.0
+	shiftSpeedMS       = 0.5
 	shiftLeadTime      = 10 * time.Second
-	shiftGrace         = 2 * time.Minute
+	shiftGrace         = time.Minute
 	maxCollarsPerShift = 99
 )
 
@@ -93,7 +94,7 @@ func createShift(ctx context.Context, farmerID, body string) (events.APIGatewayV
 	}
 
 	start := now.Add(shiftLeadTime)
-	sweep := time.Duration(widestSpanM(append(rings[0], rings[1]...)) / shiftSpeedMS * float64(time.Second))
+	sweep := time.Duration(wallTravelM(rings[0], rings[1]) / shiftSpeedMS * float64(time.Second))
 	s := Shift{
 		ID:            rand.Text(),
 		FarmerID:      farmerID,
@@ -194,16 +195,45 @@ func getPaddock(ctx context.Context, farmerID, paddockID string) (*Paddock, erro
 	return &p, nil
 }
 
-func widestSpanM(pts [][]float64) float64 {
+func wallTravelM(fromRing, toRing [][]float64) float64 {
 	const metresPerDeg = 111_320.0
-	cosLat := math.Cos(pts[0][1] * math.Pi / 180)
-	widest := 0.0
-	for _, a := range pts {
-		for _, b := range pts {
-			widest = math.Max(widest, math.Hypot((a[0]-b[0])*metresPerDeg*cosLat, (a[1]-b[1])*metresPerDeg))
-		}
+	from, to := openRing(fromRing), openRing(toRing)
+	origin, target := ringCenter(from), ringCenter(to)
+	cosLat := math.Cos(origin[1] * math.Pi / 180)
+	metres := func(p []float64) (float64, float64) {
+		return (p[0] - origin[0]) * metresPerDeg * cosLat, (p[1] - origin[1]) * metresPerDeg
 	}
-	return widest
+	dx, dy := metres(target)
+	l := math.Hypot(dx, dy)
+	progress := func(p []float64) float64 {
+		x, y := metres(p)
+		return (x*dx + y*dy) / l
+	}
+
+	startM, stopM := math.Inf(1), math.Inf(1)
+	for _, p := range append(slices.Clone(from), to...) {
+		startM = math.Min(startM, progress(p))
+	}
+	for _, p := range to {
+		stopM = math.Min(stopM, progress(p))
+	}
+	return math.Max(0, stopM-startM)
+}
+
+func openRing(ring [][]float64) [][]float64 {
+	if n := len(ring); n > 1 && ring[0][0] == ring[n-1][0] && ring[0][1] == ring[n-1][1] {
+		return ring[:n-1]
+	}
+	return ring
+}
+
+func ringCenter(pts [][]float64) []float64 {
+	var lng, lat float64
+	for _, p := range pts {
+		lng += p[0]
+		lat += p[1]
+	}
+	return []float64{lng / float64(len(pts)), lat / float64(len(pts))}
 }
 
 func collarIDsInPaddock(ctx context.Context, farmerID, paddockID string) ([]string, error) {

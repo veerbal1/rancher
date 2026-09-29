@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"math/rand"
 	"slices"
 	"testing"
@@ -39,11 +40,11 @@ func TestWallSweepsFromBackToFront(t *testing.T) {
 	if !s.Behind(back.Lng, back.Lat, start.Add(5*time.Second)) || s.Behind(front.Lng, front.Lat, start.Add(5*time.Second)) {
 		t.Error("after 5s only the back of the old paddock should be behind the wall")
 	}
-	if !s.Behind(front.Lng, front.Lat, start.Add(time.Hour)) {
-		t.Error("by the end the wall should have swept the whole route")
+	if got := s.WallM(start.Add(time.Hour)); math.Abs(got-250) > 0.5 {
+		t.Errorf("wall stopped %.1f m from the old centre, want 250 (the new paddock's near edge)", got)
 	}
-	if got := s.WallM(start.Add(time.Hour)); got != s.endM {
-		t.Errorf("wall stopped at %.1f, want the far end %.1f", got, s.endM)
+	if !s.Behind(front.Lng, front.Lat, start.Add(time.Hour)) {
+		t.Error("once the wall stops, every cow still shifting should be pushed")
 	}
 }
 
@@ -53,7 +54,8 @@ func TestHerdShiftArrivesWithoutBreaching(t *testing.T) {
 	start := t0.Add(10 * time.Second)
 
 	shift := NewShift("B", from, to, start, 0.5)
-	deadline := int((shift.endM-shift.startM)/shift.SpeedMS) + 60
+	deadline := int((shift.stopM-shift.startM)/shift.SpeedMS) + 60
+	const maxLagM = 10.0
 
 	var herd []*Collar
 	for seed := int64(1); seed <= 10; seed++ {
@@ -71,6 +73,9 @@ func TestHerdShiftArrivesWithoutBreaching(t *testing.T) {
 			col.Step(now, 1)
 			if col.State() == Breached {
 				t.Fatalf("cow %d breached at tick %d", col.Number, tick)
+			}
+			if lag := shift.WallM(now) - shift.progress(col.cow.Lng, col.cow.Lat); col.shift != nil && lag > maxLagM {
+				t.Fatalf("cow %d fell %.1f m behind the wall at tick %d", col.Number, lag, tick)
 			}
 			if _, done := arrived[col.Number]; !done && col.shift == nil {
 				if now.Before(start) {
