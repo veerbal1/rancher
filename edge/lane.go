@@ -20,33 +20,50 @@ type Lane struct {
 }
 
 func (l Lane) DistanceM(lng, lat float64) float64 {
-	d, _ := l.nearest(lng, lat)
+	d, _, _ := l.nearest(lng, lat)
 	return d
 }
 
 func (l Lane) Nearest(lng, lat float64) Point {
-	_, p := l.nearest(lng, lat)
+	_, _, p := l.nearest(lng, lat)
 	return p
 }
 
-func (l Lane) nearest(lng, lat float64) (float64, Point) {
+func (l Lane) nearest(lng, lat float64) (distM, alongM float64, p Point) {
 	k := metresPerDeg * math.Cos(lat*math.Pi/180)
-	best, bestP := math.Inf(1), Point{}
+	distM = math.Inf(1)
+	walked := 0.0
 	for i := 0; i+1 < len(l.Path); i++ {
 		a, b := l.Path[i], l.Path[i+1]
 		ax, ay := (a.Lng-lng)*k, (a.Lat-lat)*metresPerDeg
 		bx, by := (b.Lng-lng)*k, (b.Lat-lat)*metresPerDeg
 		dx, dy := bx-ax, by-ay
+		segM := math.Hypot(dx, dy)
 		t := 0.0
-		if l2 := dx*dx + dy*dy; l2 > 0 {
-			t = math.Max(0, math.Min(1, -(ax*dx+ay*dy)/l2))
+		if segM > 0 {
+			t = math.Max(0, math.Min(1, -(ax*dx+ay*dy)/(segM*segM)))
 		}
-		if d := math.Hypot(ax+t*dx, ay+t*dy); d < best {
-			best = d
-			bestP = Point{Lng: a.Lng + t*(b.Lng-a.Lng), Lat: a.Lat + t*(b.Lat-a.Lat)}
+		if d := math.Hypot(ax+t*dx, ay+t*dy); d < distM {
+			distM, alongM = d, walked+t*segM
+			p = Point{Lng: a.Lng + t*(b.Lng-a.Lng), Lat: a.Lat + t*(b.Lat-a.Lat)}
 		}
+		walked += segM
 	}
-	return best, bestP
+	return distM, alongM, p
+}
+
+func (l Lane) PointAt(alongM float64) Point {
+	k := metresPerDeg * math.Cos(l.Path[0].Lat*math.Pi/180)
+	for i := 0; i+1 < len(l.Path); i++ {
+		a, b := l.Path[i], l.Path[i+1]
+		segM := math.Hypot((b.Lng-a.Lng)*k, (b.Lat-a.Lat)*metresPerDeg)
+		if alongM <= segM && segM > 0 {
+			t := math.Max(0, alongM/segM)
+			return Point{Lng: a.Lng + t*(b.Lng-a.Lng), Lat: a.Lat + t*(b.Lat-a.Lat)}
+		}
+		alongM -= segM
+	}
+	return l.Path[len(l.Path)-1]
 }
 
 func (l Lane) Gate(from Polygon) Point {

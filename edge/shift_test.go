@@ -77,10 +77,97 @@ func TestGuidanceStartsPast60AndStopsUnder30(t *testing.T) {
 	}
 	for _, s := range steps {
 		col.cow.Heading = s.offDeg * math.Pi / 180
-		col.guide(target.Lng, target.Lat)
+		col.guide(target.Lng, target.Lat, 0)
 		if col.guiding != s.want {
 			t.Errorf("heading %v° off: guiding %v, want %v", s.offDeg, col.guiding, s.want)
 		}
+	}
+}
+
+func TestDriftStartsGuidanceEvenWhenHeadingIsFine(t *testing.T) {
+	start := at(0, 0)
+	target := at(0, 100)
+	col := NewCollar("C", 1, "A", squareAt(-50, -50, 200), NewCow(start.Lng, start.Lat, rand.New(rand.NewSource(1))), warnM)
+
+	steps := []struct {
+		driftM float64
+		want   bool
+	}{
+		{1.2, false},
+		{2, true},
+		{1.2, true},
+		{0.5, false},
+	}
+	for _, s := range steps {
+		col.cow.Heading = 0
+		col.guide(target.Lng, target.Lat, s.driftM)
+		if col.guiding != s.want {
+			t.Errorf("drift %.1f m: guiding %v, want %v", s.driftM, col.guiding, s.want)
+		}
+	}
+}
+
+func TestLookaheadFollowsTheLaneRoundABend(t *testing.T) {
+	s := NewShift("B", squareAt(0, 0, 100), squareAt(300, 200, 100), pathM([2]float64{50, 50}, [2]float64{200, 50}, [2]float64{200, 250}, [2]float64{350, 250}), 8, time.Time{})
+
+	tests := []struct {
+		name       string
+		x, y       float64
+		wantX      float64
+		wantY      float64
+		wantDriftM float64
+	}{
+		{"first leg, on the line", 150, 50, 155, 50, 0},
+		{"first leg, drifted 2 m", 150, 52, 155, 50, 2},
+		{"just before the bend", 198, 50, 200, 53, 0},
+		{"second leg", 200, 150, 200, 155, 0},
+	}
+	for _, tt := range tests {
+		p := at(tt.x, tt.y)
+		lng, lat, drift := s.Guide(p.Lng, p.Lat)
+		if d := metresApart(Point{Lng: lng, Lat: lat}, at(tt.wantX, tt.wantY)); d > 0.5 || math.Abs(drift-tt.wantDriftM) > 0.1 {
+			t.Errorf("%s: target %.1f m off, drift %.1f m (want %.1f)", tt.name, d, drift, tt.wantDriftM)
+		}
+	}
+}
+
+func TestHerdFollowsAnLShapedLane(t *testing.T) {
+	from, to := squareAt(0, 0, 100), squareAt(300, 200, 100)
+	path := pathM([2]float64{50, 50}, [2]float64{200, 50}, [2]float64{200, 250}, [2]float64{350, 250})
+	t0 := time.Unix(1_000, 0)
+	shift := NewShift("B", from, to, path, 8, t0.Add(10*time.Second))
+	const deadline = 1200
+
+	var herd []*Collar
+	arrived := map[int]int{}
+	for seed := int64(1); seed <= 10; seed++ {
+		rng := rand.New(rand.NewSource(seed))
+		lng, lat := from.RandomPoint(rng)
+		col := NewCollar("C", int(seed), "A", from, NewCow(lng, lat, rng), warnM)
+		col.StartShift(shift)
+		herd = append(herd, col)
+	}
+
+	for tick := 1; tick <= deadline+10 && len(arrived) < len(herd); tick++ {
+		now := t0.Add(time.Duration(tick) * time.Second)
+		for _, col := range herd {
+			col.Step(now, 1)
+			if col.State() == Breached {
+				t.Fatalf("cow %d breached at tick %d", col.Number, tick)
+			}
+			if _, done := arrived[col.Number]; !done && col.shift == nil {
+				arrived[col.Number] = tick - 10
+			}
+		}
+	}
+
+	for _, col := range herd {
+		secs, ok := arrived[col.Number]
+		if !ok {
+			t.Errorf("cow %d did not arrive within %ds", col.Number, deadline)
+			continue
+		}
+		t.Logf("cow %d arrived after %ds", col.Number, secs)
 	}
 }
 

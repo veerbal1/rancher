@@ -172,16 +172,16 @@ func (col *Collar) followShift(now time.Time) {
 	}
 
 	col.fence = s.Fence
-	col.guide(s.Target(lng, lat))
+	col.guide(s.Guide(lng, lat))
 }
 
-func (col *Collar) guide(lng, lat float64) {
+func (col *Collar) guide(lng, lat, driftM float64) {
 	off := math.Abs(col.cow.BearingDiff(lng, lat))
 	switch {
-	case col.guiding && off < cueStopRad:
-		col.guiding = false
-	case !col.guiding && off > cueStartRad:
+	case !col.guiding && (off > cueStartRad || driftM > driftStartM):
 		col.guiding = true
+	case col.guiding && off < cueStopRad && driftM < driftStopM:
+		col.guiding = false
 	}
 	if col.guiding {
 		col.cow.SteerTo(lng, lat, guideRate)

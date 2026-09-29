@@ -9,6 +9,9 @@ const (
 	cueStartRad = 60 * math.Pi / 180
 	cueStopRad  = 30 * math.Pi / 180
 	guideRate   = 0.6
+	lookaheadM  = 5.0
+	driftStartM = 1.5
+	driftStopM  = 1.0
 )
 
 type Shift struct {
@@ -42,9 +45,15 @@ func NewShift(toID string, from, to Polygon, path []Point, widthM float64, start
 	}
 }
 
-func (s *Shift) Target(lng, lat float64) (float64, float64) {
-	if s.From.Contains(lng, lat) {
-		return s.Gate.Lng, s.Gate.Lat
+func (s *Shift) Guide(lng, lat float64) (targetLng, targetLat, driftM float64) {
+	switch {
+	case s.From.Contains(lng, lat):
+		return s.Gate.Lng, s.Gate.Lat, 0
+	case s.To.Contains(lng, lat):
+		targetLng, targetLat = s.To.Center()
+		return targetLng, targetLat, 0
 	}
-	return s.To.Center()
+	driftM, alongM, _ := s.Lane.nearest(lng, lat)
+	ahead := s.Lane.PointAt(alongM + lookaheadM)
+	return ahead.Lng, ahead.Lat, driftM
 }
