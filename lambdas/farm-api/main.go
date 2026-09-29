@@ -74,6 +74,8 @@ func handle(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.API
 		return getWorld(ctx)
 	case "PATCH /farmers/{id}/collars":
 		return assignCollars(ctx, req.PathParameters["id"], req.Body)
+	case "DELETE /farmers/{id}/collars/{collarId}":
+		return deleteCollar(ctx, req.PathParameters["id"], req.PathParameters["collarId"])
 	default:
 		return respond(http.StatusNotFound, errorBody("not found"))
 	}

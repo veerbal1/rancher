@@ -64,9 +64,22 @@ export function useCollars(farmerId: string | null) {
     }
   }
 
+  const deleteCollar = async (id: string) => {
+    if (!farmerId) throw new Error('no farmer selected')
+    const res = await fetch(
+      `${FARM_API_URL}/farmers/${encodeURIComponent(farmerId)}/collars/${encodeURIComponent(id)}`,
+      { method: 'DELETE' },
+    )
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error ?? `HTTP ${res.status}`)
+    }
+    setCollars((prev) => prev.filter((c) => c.id !== id))
+  }
+
   const forgetPaddock = (paddockId: string) => {
     setCollars((prev) => prev.map((c) => (c.paddock_id === paddockId ? { ...c, paddock_id: null } : c)))
   }
 
-  return { collars, error, buyCollars, assignCollars, forgetPaddock }
+  return { collars, error, buyCollars, assignCollars, deleteCollar, forgetPaddock }
 }

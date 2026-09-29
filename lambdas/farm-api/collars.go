@@ -182,6 +182,25 @@ func assignCollars(ctx context.Context, farmerID, body string) (events.APIGatewa
 	return respond(http.StatusOK, map[string]any{"collar_ids": ids, "paddock_id": in.PaddockID})
 }
 
+func deleteCollar(ctx context.Context, farmerID, collarID string) (events.APIGatewayV2HTTPResponse, error) {
+	_, err := db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+		TableName: aws.String(table),
+		Key: map[string]types.AttributeValue{
+			"PK": &types.AttributeValueMemberS{Value: "FARMER#" + farmerID},
+			"SK": &types.AttributeValueMemberS{Value: "COLLAR#" + collarID},
+		},
+		ConditionExpression: aws.String("attribute_exists(PK)"),
+	})
+	var notFound *types.ConditionalCheckFailedException
+	if errors.As(err, &notFound) {
+		return respond(http.StatusNotFound, errorBody("collar not found"))
+	}
+	if err != nil {
+		return events.APIGatewayV2HTTPResponse{}, err
+	}
+	return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusNoContent}, nil
+}
+
 func unassignCollarsFromPaddock(ctx context.Context, farmerID, paddockID string) error {
 	pages := dynamodb.NewQueryPaginator(db, &dynamodb.QueryInput{
 		TableName:              aws.String(table),

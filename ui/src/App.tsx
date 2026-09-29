@@ -13,7 +13,7 @@ import { findOverlaps } from './map/overlap'
 import { useCows } from './useCows'
 import { useFarmers, type Location } from './useFarmers'
 import { usePaddocks } from './usePaddocks'
-import { useCollars } from './useCollars'
+import { useCollars, type Collar } from './useCollars'
 import { MenuPanel } from './components/MenuPanel'
 import { FarmersSection } from './components/FarmersSection'
 import { SelectedFarmer } from './components/SelectedFarmer'
@@ -32,7 +32,7 @@ function App() {
   const [draftRing, setDraftRing] = useState<LngLat[] | null>(null)
   const { paddocks, error: paddocksError, createPaddock, renamePaddock, deletePaddock } = usePaddocks(selectedFarmerId)
   const [selectedPaddockId, setSelectedPaddockId] = useState<string | null>(null)
-  const { collars, error: collarsError, buyCollars, assignCollars, forgetPaddock } = useCollars(selectedFarmerId)
+  const { collars, error: collarsError, buyCollars, assignCollars, deleteCollar, forgetPaddock } = useCollars(selectedFarmerId)
 
   const selectedFarmer = farmers.find((f) => f.id === selectedFarmerId)
   const selectedPaddock = paddocks.find((p) => p.id === selectedPaddockId)
@@ -105,6 +105,11 @@ function App() {
     toast.success(`Added ${added.length} collar${added.length === 1 ? '' : 's'}`, { description: range })
   }
 
+  const removeCollar = async (collar: Collar) => {
+    await deleteCollar(collar.id)
+    toast.success(`${collar.name} deleted`)
+  }
+
   const handleMapClick = (e: MapLayerMouseEvent) => {
     const id = e.features?.[0]?.properties?.id
     setSelectedPaddockId(typeof id === 'string' ? id : null)
@@ -165,7 +170,7 @@ function App() {
             onAssignCollars={saveCollarAssignment}
           />
         )}
-        <CollarsSection collars={collars} paddocks={paddocks} canAdd={!!selectedFarmer} onAdd={addCollars} />
+        <CollarsSection collars={collars} paddocks={paddocks} canAdd={!!selectedFarmer} onAdd={addCollars} onDelete={removeCollar} />
       </MenuPanel>
 
       <Toaster theme="light" position="top-center" />
