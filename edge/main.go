@@ -24,6 +24,7 @@ type Event struct {
 	PaddockID string    `json:"paddock_id"`
 	Lat       float64   `json:"lat"`
 	Lng       float64   `json:"lng"`
+	Heading   float64   `json:"heading"`
 	State     State     `json:"state"`
 	Level     Cue       `json:"level"`
 }

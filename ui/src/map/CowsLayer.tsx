@@ -15,7 +15,7 @@ export function CowsLayer({ cows }: { cows: Cow[] }) {
       type: 'FeatureCollection',
       features: cows.map((c) => ({
         type: 'Feature',
-        properties: { collar_id: c.collar_id, state: c.state },
+        properties: { collar_id: c.collar_id, state: c.state, heading: c.heading },
         geometry: { type: 'Point', coordinates: [c.lng, c.lat] },
       })),
     }),

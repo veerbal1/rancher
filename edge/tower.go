@@ -2,6 +2,7 @@ package main
 
 import (
 	"hash/fnv"
+	"math"
 	"math/rand"
 	"slices"
 	"sort"
@@ -93,6 +94,7 @@ func (t *Tower) Tick(now time.Time, emit func(Event)) {
 			PaddockID: col.PaddockID,
 			Lat:       col.cow.Lat,
 			Lng:       col.cow.Lng,
+			Heading:   col.cow.Heading * 180 / math.Pi,
 			State:     col.State(),
 			Level:     col.Level(),
 		})

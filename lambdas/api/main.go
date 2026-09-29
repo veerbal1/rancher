@@ -23,6 +23,7 @@ type Cow struct {
 	PaddockID string  `json:"paddock_id" dynamodbav:"paddock_id"`
 	Lat       float64 `json:"lat"        dynamodbav:"lat"`
 	Lng       float64 `json:"lng"        dynamodbav:"lng"`
+	Heading   float64 `json:"heading"    dynamodbav:"heading"`
 	State     string  `json:"state"      dynamodbav:"state"`
 	Level     string  `json:"level"      dynamodbav:"level"`
 }

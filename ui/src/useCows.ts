@@ -8,6 +8,7 @@ export type Cow = {
   paddock_id: string
   lat: number
   lng: number
+  heading: number
   state: string
   level: string
 }
