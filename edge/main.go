@@ -87,7 +87,7 @@ func applyWorld(towers map[string]*Tower, w World) {
 			log.Printf("tower %s: up", f.Name)
 		}
 		if r := t.Reconcile(f); r != (ReconcileResult{}) {
-			log.Printf("tower %s: +%d cows, %d fences changed, -%d cows, %d cows now", t.Name, r.Added, r.FenceChanged, r.Removed, len(t.order))
+			log.Printf("tower %s: +%d cows, %d fences changed, %d shifting, -%d cows, %d cows now", t.Name, r.Added, r.FenceChanged, r.Shifted, r.Removed, len(t.order))
 		}
 	}
 	for id, t := range towers {

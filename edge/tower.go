@@ -22,6 +22,7 @@ type Tower struct {
 type ReconcileResult struct {
 	Added        int
 	FenceChanged int
+	Shifted      int
 	Removed      int
 }
 
@@ -61,9 +62,15 @@ func (t *Tower) Reconcile(f WorldFarm) ReconcileResult {
 			lng, lat := fence.RandomPoint(rng)
 			t.collars[c.ID] = NewCollar(c.ID, c.Number, *c.PaddockID, fence, NewCow(lng, lat, rng), warnM)
 			r.Added++
+		case col.shift != nil && col.shift.ToID == *c.PaddockID:
 		case col.PaddockID != *c.PaddockID || !slices.Equal(col.fence, fence):
-			col.SetFence(*c.PaddockID, fence)
-			r.FenceChanged++
+			if s, from := findShift(f.Shifts, col.PaddockID, *c.PaddockID), fences[col.PaddockID]; s != nil && from != nil {
+				col.StartShift(NewShift(s.ToPaddockID, from, fence, s.StartAt, s.SpeedMS))
+				r.Shifted++
+			} else {
+				col.SetFence(*c.PaddockID, fence)
+				r.FenceChanged++
+			}
 		}
 	}
 
@@ -84,7 +91,7 @@ func (t *Tower) Reconcile(f WorldFarm) ReconcileResult {
 
 func (t *Tower) Tick(now time.Time, emit func(Event)) {
 	for _, col := range t.order {
-		col.Step(1)
+		col.Step(now, 1)
 		t.seq++
 		emit(Event{
 			FarmerID:  t.FarmerID,
@@ -99,6 +106,15 @@ func (t *Tower) Tick(now time.Time, emit func(Event)) {
 			Level:     col.Level(),
 		})
 	}
+}
+
+func findShift(shifts []WorldShift, from, to string) *WorldShift {
+	for i := range shifts {
+		if shifts[i].FromPaddockID == from && shifts[i].ToPaddockID == to {
+			return &shifts[i]
+		}
+	}
+	return nil
 }
 
 func seedFor(id string) int64 {

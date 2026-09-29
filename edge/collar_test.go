@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/rand"
 	"testing"
+	"time"
 )
 
 func TestCueLadderAndCalmDown(t *testing.T) {
@@ -54,7 +55,7 @@ func TestCuedCowNeverBreaches(t *testing.T) {
 		col := NewCollar("C1", 1, "A", fence, cow, 10)
 
 		for tick := 1; tick <= 600; tick++ {
-			col.Step(1)
+			col.Step(time.Now(), 1)
 			if col.State() == Breached {
 				t.Fatalf("seed %d: breached at tick %d", seed, tick)
 			}

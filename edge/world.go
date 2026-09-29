@@ -32,6 +32,7 @@ type WorldFarm struct {
 	} `json:"location"`
 	Paddocks []WorldPaddock `json:"paddocks"`
 	Collars  []WorldCollar  `json:"collars"`
+	Shifts   []WorldShift   `json:"shifts"`
 }
 
 type WorldPaddock struct {
@@ -47,6 +48,14 @@ type WorldCollar struct {
 	Number    int     `json:"number"`
 	Name      string  `json:"name"`
 	PaddockID *string `json:"paddock_id"`
+}
+
+type WorldShift struct {
+	ID            string    `json:"id"`
+	FromPaddockID string    `json:"from_paddock_id"`
+	ToPaddockID   string    `json:"to_paddock_id"`
+	StartAt       time.Time `json:"start_at"`
+	SpeedMS       float64   `json:"speed_ms"`
 }
 
 func fetchWorld(ctx context.Context, cfg aws.Config) (World, error) {

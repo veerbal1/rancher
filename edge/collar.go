@@ -1,11 +1,14 @@
 package main
 
+import "time"
+
 type State int
 
 const (
 	Inside State = iota
 	Warning
 	Breached
+	Moving
 )
 
 func (s State) String() string {
@@ -16,6 +19,8 @@ func (s State) String() string {
 		return "warning"
 	case Breached:
 		return "breached"
+	case Moving:
+		return "moving"
 	default:
 		return "unknown"
 	}
@@ -63,6 +68,9 @@ type Collar struct {
 	dwell  int
 	calm   int
 	gaveUp bool
+
+	shift  *Shift
+	pushed bool
 }
 
 func NewCollar(id string, number int, paddockID string, fence Polygon, c *Cow, warnM float64) *Collar {
@@ -72,11 +80,27 @@ func NewCollar(id string, number int, paddockID string, fence Polygon, c *Cow, w
 func (col *Collar) SetFence(paddockID string, fence Polygon) {
 	col.PaddockID = paddockID
 	col.fence = fence
+	col.shift = nil
 }
 
-func (col *Collar) State() State { return col.state }
+func (col *Collar) StartShift(s *Shift) {
+	col.PaddockID = s.ToID
+	col.shift = s
+}
 
-func (col *Collar) Level() Cue { return col.level }
+func (col *Collar) State() State {
+	if col.shift != nil && col.state == Inside {
+		return Moving
+	}
+	return col.state
+}
+
+func (col *Collar) Level() Cue {
+	if col.level == CueNone && col.pushed {
+		return CueAudio
+	}
+	return col.level
+}
 
 func (col *Collar) Observe() Cue {
 	raw := zoneToState(col.fence.Evaluate(col.cow.Lng, col.cow.Lat, col.warnM))
@@ -122,12 +146,34 @@ func (col *Collar) Observe() Cue {
 	}
 }
 
-func (col *Collar) Step(dt float64) {
+func (col *Collar) Step(now time.Time, dt float64) {
 	col.cow.Step(dt)
+	col.followShift(now)
 	if col.Observe() == CuePulse {
 		col.cow.TurnAround()
 	}
 	col.respond()
+}
+
+func (col *Collar) followShift(now time.Time) {
+	col.pushed = false
+	s := col.shift
+	if s == nil || now.Before(s.Start) {
+		return
+	}
+
+	lng, lat := col.cow.Lng, col.cow.Lat
+	if s.To.Evaluate(lng, lat, col.warnM) == ZoneInside {
+		col.fence, col.shift = s.To, nil
+		return
+	}
+
+	col.fence = s.Hull
+	if s.Behind(lng, lat, now) {
+		col.pushed = true
+		toLng, toLat := s.To.Center()
+		col.cow.SteerTo(toLng, toLat, pushRate)
+	}
 }
 
 func (col *Collar) respond() {
