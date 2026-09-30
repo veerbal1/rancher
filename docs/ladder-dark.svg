@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 400" width="1000" height="400" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<defs>
+<marker id="arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8b949e"/></marker>
+<marker id="arrow-emitter" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f59e0b"/></marker>
+<marker id="arrow-text" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e6edf3"/></marker>
+</defs>
+<rect x="1" y="1" width="998" height="398" rx="14" fill="#0d1117" stroke="#30363d"/>
+<text x="28.0" y="42.0" font-size="16" fill="#e6edf3" text-anchor="start" font-weight="600">The cue ladder: each step is stronger and turns her further</text>
+<line x1="626" y1="30" x2="626" y2="370" stroke="#30363d"/>
+<rect x="42" y="200" width="156" height="30" rx="7" fill="#e3b341" fill-opacity="0.9"/>
+<text x="120.0" y="220.0" font-size="13.5" fill="#ffffff" text-anchor="middle" font-weight="700">sound</text>
+<path d="M98.0,174.0 L98.0,116.0 A58,58 0 0 0 60.7,129.6 z" fill="#e3b341" fill-opacity="0.22" stroke="#e3b341" stroke-width="1.5"/>
+<line x1="98.0" y1="174.0" x2="98.0" y2="108.0" stroke="#8b949e" stroke-width="1.2" stroke-dasharray="3 3"/>
+<line x1="98.0" y1="174.0" x2="55.6" y2="123.4" stroke="#e3b341" stroke-width="2"/>
+<text x="110.0" y="164.0" font-size="15" fill="#e3b341" text-anchor="start" font-weight="700">40°</text>
+<text x="120.0" y="254.0" font-size="12" fill="#8b949e" text-anchor="middle" font-weight="normal">40° per second</text>
+<rect x="202" y="200" width="156" height="30" rx="7" fill="#f0883e" fill-opacity="0.9"/>
+<text x="280.0" y="220.0" font-size="13.5" fill="#ffffff" text-anchor="middle" font-weight="700">vibration</text>
+<path d="M258.0,174.0 L258.0,116.0 A58,58 0 0 0 207.8,145.0 z" fill="#f0883e" fill-opacity="0.22" stroke="#f0883e" stroke-width="1.5"/>
+<line x1="258.0" y1="174.0" x2="258.0" y2="108.0" stroke="#8b949e" stroke-width="1.2" stroke-dasharray="3 3"/>
+<line x1="258.0" y1="174.0" x2="200.8" y2="141.0" stroke="#f0883e" stroke-width="2"/>
+<text x="270.0" y="164.0" font-size="15" fill="#f0883e" text-anchor="start" font-weight="700">60°</text>
+<text x="280.0" y="254.0" font-size="12" fill="#8b949e" text-anchor="middle" font-weight="normal">60° per second</text>
+<rect x="362" y="200" width="156" height="30" rx="7" fill="#f85149" fill-opacity="0.9"/>
+<text x="440.0" y="220.0" font-size="13.5" fill="#ffffff" text-anchor="middle" font-weight="700">pulse</text>
+<path d="M418.0,174.0 L418.0,116.0 A58,58 0 0 0 360.0,174.0 z" fill="#f85149" fill-opacity="0.22" stroke="#f85149" stroke-width="1.5"/>
+<line x1="418.0" y1="174.0" x2="418.0" y2="108.0" stroke="#8b949e" stroke-width="1.2" stroke-dasharray="3 3"/>
+<line x1="418.0" y1="174.0" x2="352.0" y2="174.0" stroke="#f85149" stroke-width="2"/>
+<text x="430.0" y="164.0" font-size="15" fill="#f85149" text-anchor="start" font-weight="700">90°</text>
+<text x="440.0" y="254.0" font-size="12" fill="#8b949e" text-anchor="middle" font-weight="normal">90° per second</text>
+<rect x="522" y="200" width="58" height="30" rx="7" fill="none" stroke="#6e7681" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="551.0" y="220.0" font-size="13.5" fill="#6e7681" text-anchor="middle" font-weight="700">stop</text>
+<text x="551.0" y="254.0" font-size="12" fill="#8b949e" text-anchor="middle" font-weight="normal">until calm 3 s</text>
+<line x1="40.0" y1="238.0" x2="584.0" y2="238.0" stroke="#8b949e" stroke-width="1.2" marker-end="url(#arrow-muted)"/>
+<line x1="40.0" y1="234.0" x2="40.0" y2="242.0" stroke="#8b949e" stroke-width="1.2"/>
+<text x="40.0" y="278.0" font-size="12" fill="#e6edf3" text-anchor="middle" font-weight="600">0 s</text>
+<line x1="200.0" y1="234.0" x2="200.0" y2="242.0" stroke="#8b949e" stroke-width="1.2"/>
+<text x="200.0" y="278.0" font-size="12" fill="#e6edf3" text-anchor="middle" font-weight="600">8 s</text>
+<line x1="360.0" y1="234.0" x2="360.0" y2="242.0" stroke="#8b949e" stroke-width="1.2"/>
+<text x="360.0" y="278.0" font-size="12" fill="#e6edf3" text-anchor="middle" font-weight="600">16 s</text>
+<line x1="520.0" y1="234.0" x2="520.0" y2="242.0" stroke="#8b949e" stroke-width="1.2"/>
+<text x="520.0" y="278.0" font-size="12" fill="#e6edf3" text-anchor="middle" font-weight="600">24 s</text>
+<text x="28.0" y="330.0" font-size="13" fill="#e6edf3" text-anchor="start" font-weight="normal">Every 8 s she stays threatened, the cue steps up. Each second a cue is on, she turns away.</text>
+<text x="28.0" y="350.0" font-size="13" fill="#8b949e" text-anchor="start" font-weight="normal">After a pulse the collar gives up rather than keep shocking her, and waits until she settles.</text>
+<text x="652.0" y="42.0" font-size="16" fill="#e6edf3" text-anchor="start" font-weight="600">Head-on at 10 m: three sounds</text>
+<rect x="652" y="84" width="320" height="216" fill="#3fb9501c"/>
+<line x1="652.0" y1="84.0" x2="972.0" y2="84.0" stroke="#3fb950" stroke-width="3"/>
+<polyline points="905.0,292.0 905.0,262.0 876.1,227.5 831.8,219.7 792.8,242.2" fill="none" stroke="#8b949e" stroke-width="1.6" stroke-dasharray="4 3"/>
+<line x1="905.0" y1="250.0" x2="905.0" y2="88.0" stroke="#8b949e" stroke-width="1.2" stroke-dasharray="2 4"/>
+<path d="M897,168 l8,-5 l8,5 M897,176 l8,-5 l8,5" fill="none" stroke="#8b949e" stroke-width="1.4"/>
+<text x="915.0" y="130.0" font-size="12" fill="#8b949e" text-anchor="start" font-weight="600">10 m</text>
+<g transform="translate(905.0,292.0) rotate(0.0)">
+<ellipse cx="0" cy="6" rx="7" ry="11" fill="#e6edf3"/>
+<ellipse cx="0" cy="-9" rx="4.2" ry="5.5" fill="#e6edf3"/>
+<circle cx="-7" cy="-7.5" r="3.6" fill="#484f58" stroke="#0d1117" stroke-width="1.3"/>
+<circle cx="7" cy="-7.5" r="3.6" fill="#484f58" stroke="#0d1117" stroke-width="1.3"/>
+</g>
+<text x="889.0" y="297.0" font-size="12" fill="#8b949e" text-anchor="end" font-weight="600">0 s</text>
+<g transform="translate(905.0,262.0) rotate(-40.0)">
+<ellipse cx="0" cy="6" rx="7" ry="11" fill="#e6edf3"/>
+<ellipse cx="0" cy="-9" rx="4.2" ry="5.5" fill="#e6edf3"/>
+<circle cx="-7" cy="-7.5" r="3.6" fill="#484f58" stroke="#0d1117" stroke-width="1.3"/>
+<circle cx="7" cy="-7.5" r="3.6" fill="#f59e0b" stroke="#0d1117" stroke-width="1.3"/>
+</g>
+<circle cx="923.4" cy="246.6" r="9" fill="#e3b341"/>
+<text x="923.4" y="251.1" font-size="12" fill="#ffffff" text-anchor="middle" font-weight="700">1</text>
+<g transform="translate(876.1,227.5) rotate(-80.0)">
+<ellipse cx="0" cy="6" rx="7" ry="11" fill="#e6edf3"/>
+<ellipse cx="0" cy="-9" rx="4.2" ry="5.5" fill="#e6edf3"/>
+<circle cx="-7" cy="-7.5" r="3.6" fill="#484f58" stroke="#0d1117" stroke-width="1.3"/>
+<circle cx="7" cy="-7.5" r="3.6" fill="#f59e0b" stroke="#0d1117" stroke-width="1.3"/>
+</g>
+<circle cx="880.2" cy="203.9" r="9" fill="#e3b341"/>
+<text x="880.2" y="208.4" font-size="12" fill="#ffffff" text-anchor="middle" font-weight="700">2</text>
+<g transform="translate(831.8,219.7) rotate(-120.0)">
+<ellipse cx="0" cy="6" rx="7" ry="11" fill="#e6edf3"/>
+<ellipse cx="0" cy="-9" rx="4.2" ry="5.5" fill="#e6edf3"/>
+<circle cx="-7" cy="-7.5" r="3.6" fill="#484f58" stroke="#0d1117" stroke-width="1.3"/>
+<circle cx="7" cy="-7.5" r="3.6" fill="#f59e0b" stroke="#0d1117" stroke-width="1.3"/>
+</g>
+<circle cx="819.8" cy="198.9" r="9" fill="#e3b341"/>
+<text x="819.8" y="203.4" font-size="12" fill="#ffffff" text-anchor="middle" font-weight="700">3</text>
+<line x1="792.8" y1="242.2" x2="766.8" y2="257.2" stroke="#e6edf3" stroke-width="1.6" marker-end="url(#arrow-text)"/>
+<text x="786.8" y="276.2" font-size="12" fill="#e6edf3" text-anchor="middle" font-weight="600">walks off</text>
+<text x="652.0" y="330.0" font-size="13" fill="#e6edf3" text-anchor="start" font-weight="normal">1, 2, 3: a sound and a 40° left turn each second.</text>
+<text x="652.0" y="350.0" font-size="13" fill="#8b949e" text-anchor="start" font-weight="normal">At 120° away the cue stops. No vibration needed.</text>
+</svg>

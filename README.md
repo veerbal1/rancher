@@ -218,3 +218,38 @@ How far each cue turns her, and what happens if she ignores it, comes next.
 
 Code: [`edge/collar.go`](edge/collar.go) (`assess` and `sideToward`)
 
+### The cue ladder
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/ladder-dark.svg">
+  <img src="docs/ladder.svg" alt="Left: a timeline. A sound from 0 to 8 seconds turns her 40 degrees per second, a vibration from 8 to 16 seconds turns her 60 degrees, a pulse from 16 to 24 seconds turns her 90 degrees, then the collar stops until she has been calm for 3 seconds. Right: a cow heading straight at a fence 10 m away hears three sounds, turning 40 degrees left each second until she faces 120 degrees away and walks off.">
+</picture>
+
+The first cue is always a sound. If she's still threatened, the collar steps up every 8 seconds:
+
+```math
+\text{cue}(t) =
+\begin{cases}
+\text{sound} & 0 \le t < 8\ \text{s} \\
+\text{vibration} & 8 \le t < 16\ \text{s} \\
+\text{pulse} & 16 \le t < 24\ \text{s} \\
+\text{nothing} & t \ge 24\ \text{s}
+\end{cases}
+```
+
+where $t$ counts the seconds she has stayed in warning or breached since the first cue. Each second a cue is on and a wall is still a threat, she turns away from it, further at every step:
+
+```math
+\psi \leftarrow \psi \mp \Delta \qquad \Delta = 40^\circ,\ 60^\circ,\ 90^\circ \ \text{for sound, vibration, pulse}
+```
+
+The right emitter subtracts, turning her left; the left emitter adds, turning her right.
+
+- **A sound is usually enough.** Head-on from 10 m, three sounds turn her 120° away, as in the diagram. Coming in at a shallower angle, one or two do it.
+- **The turn grows with the cue.** A cow that ignores the sound gets a vibration and a sharper 60° turn. The pulse turns her a full 90° at a time.
+- **It gives up, on purpose.** After 8 seconds at pulse level the collar stops altogether rather than keep pulsing a cow that isn't responding. She may be panicked, stuck, or pushed by the herd, and more pulses won't help. It stays quiet until she has been calm for 3 seconds, then starts again from a sound. Animal welfare is the hard constraint on virtual fencing: a cow has to be able to learn the cue, and must never be pulsed without end. In a real system this is also when the farmer should get an alert, which is on the [roadmap](#roadmap).
+
+What she does right after a cue comes next.
+
+Code: [`edge/collar.go`](edge/collar.go) (`Observe`, `Step` and `cueTurnRad`)
+
