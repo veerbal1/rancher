@@ -31,8 +31,7 @@ A portfolio build modelled on [Halter](https://halterhq.com): simulated collars 
   <a href="#architecture">Architecture</a> ·
   <a href="#how-the-collar-thinks">Algorithms</a> ·
   <a href="#distributed-systems">Distributed systems</a> ·
-  <a href="#run-it">Run it</a> ·
-  <a href="#roadmap">Roadmap</a>
+  <a href="#run-it">Run it</a>
 </p>
 
 > The live demo runs on demand to keep costs at zero. Ask me for a link, or bring up your own copy with `./scripts/up.sh`.
@@ -247,7 +246,7 @@ The right emitter subtracts, turning her left; the left emitter adds, turning he
 
 - **A sound is usually enough.** Head-on from 10 m, three sounds turn her 120° away, as in the diagram. Coming in at a shallower angle, one or two do it.
 - **The turn grows with the cue.** A cow that ignores the sound gets a vibration and a sharper 60° turn. The pulse turns her a full 90° at a time.
-- **It gives up, on purpose.** After 8 seconds at pulse level the collar stops altogether rather than keep pulsing a cow that isn't responding. She may be panicked, stuck, or pushed by the herd, and more pulses won't help. It stays quiet until she has been calm for 3 seconds, then starts again from a sound. Animal welfare is the hard constraint on virtual fencing: a cow has to be able to learn the cue, and must never be pulsed without end. In a real system this is also when the farmer should get an alert, which is on the [roadmap](#roadmap).
+- **It gives up, on purpose.** After 8 seconds at pulse level the collar stops altogether rather than keep pulsing a cow that isn't responding. She may be panicked, stuck, or pushed by the herd, and more pulses won't help. It stays quiet until she has been calm for 3 seconds, then starts again from a sound. Animal welfare is the hard constraint on virtual fencing: a cow has to be able to learn the cue, and must never be pulsed without end. In a real system this is also when the farmer should get an alert.
 
 What she does right after a cue comes next.
 
@@ -635,5 +634,5 @@ A demo with 10 cows comes to about $2 a day, which is why the stack only runs wh
 | DynamoDB writes per day | 8.6 billion, about $5,400 | 576 million, about $360 |
 | Data into Kinesis per day | 2.8 TB, about $220 | 185 GB, about $15 |
 
-The reporting rate is the lever. A cow grazing far from any fence doesn't need to report every second; only cows near a fence, or on a move, do. Adaptive reporting is on the [roadmap](#roadmap), along with keeping live positions out of the database altogether.
+The reporting rate is the lever. A cow grazing far from any fence doesn't need to report every second; only cows near a fence, or on a move, do. That's the next thing to build, along with keeping live positions out of the database altogether.
 
