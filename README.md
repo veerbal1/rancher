@@ -396,3 +396,79 @@ In the run above, the farmer turned back 47 seconds in, with three cows already 
 
 Code: [`lambdas/farm-api/shifts.go`](lambdas/farm-api/shifts.go) (`turnBackShift`) and [`edge/tower.go`](edge/tower.go) (`Reconcile`)
 
+## Distributed systems
+
+Each collar decides on its own, but the cloud still has to tell it things, like a new fence or a herd move. It does that over rural radio that drops messages, and the farmer needs to know which cows have the change. Three problems come out of that.
+
+### Fence versions over a lossy radio link
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/fence-versions-dark.svg">
+  <img src="docs/fence-versions.svg" alt="Left: a chart of 40 simulated towers delivering a new fence to 20 collars over a radio link that succeeds 80% of the time per second. On average 16 collars have it after 1 second. All 20 have it after 2 seconds in 19 of 40 runs, after 3 seconds in 35 of 40 and after 4 seconds in all of them, matching the expected 44%, 85% and 97%. Right: the flow from a boundary edit to the map. The farm API bumps fence_version, the tower reads /world within 10 seconds and queues the fence per collar, the radio retries every second, each collar reports its version in every event, and the map shows Fence v4, 17 of 20 updated. Reaching every collar with 99% certainty takes 5 seconds for 20 collars, 6 for 100, 8 for 1,000 and 9 for 10,000.">
+</picture>
+
+Every paddock carries a `fence_version`. It starts at 1, and each boundary edit adds 1 with DynamoDB's atomic `ADD`, so two edits at once can't lose an increment.
+
+1. **The tower queues per collar.** Every 10 seconds it reads `/world`, compares each collar's fence and version with what it should have, and queues an update for each one that's behind. Re-reading the same world queues nothing. A newer edit replaces a queued older one, so a collar can't receive an old fence after a newer one.
+2. **The radio retries.** Each second, each queued collar receives its update with probability $p = 0.8$. That's the simulator's model of a lossy link. Misses stay queued and try again the next second.
+3. **The acknowledgement is free.** Every event a collar sends already carries the `fence_version` it's running, so the cloud learns who has the change from telemetry it receives anyway. There's no separate ack message to lose.
+4. **The map compares versions.** A paddock shows `Fence v4 · 17/20 updated`, and each collar that's behind is tagged *syncing*. A cow partway through a move already has her destination's fence, so she's never counted as behind.
+
+Until her update arrives, a collar keeps enforcing the fence it has. A cow is never without a fence.
+
+**How long until every collar has it?** Each attempt fails with probability $1 - p$, independently, so a collar is still missing the update after $n$ seconds with probability $(1-p)^n$. For a herd of $N$:
+
+```math
+P(\text{all } N \text{ updated after } n \text{ s}) = \left(1 - (1-p)^n\right)^N \qquad \text{E}[\text{updated after } n \text{ s}] = N\left(1 - (1-p)^n\right)
+```
+
+With 20 collars that's 16 updated after one second on average, every collar within 2.7 seconds on average, and all 20 within 5 seconds 99% of the time. The 40 simulated towers in the chart land on the formula.
+
+Solving for the time that reaches every collar with probability $q$:
+
+```math
+n \ge \frac{\ln\left(1 - q^{1/N}\right)}{\ln(1-p)} \approx \log_{1/(1-p)} \frac{N}{1-q}
+```
+
+The time grows with the log of the herd size: ten times more collars costs only $\log_5 10 \approx 1.4$ more seconds.
+
+| Collars | 20 | 100 | 1,000 | 10,000 |
+|---|---|---|---|---|
+| Seconds to reach all, 99% of the time | 5 | 6 | 8 | 9 |
+
+`TestFenceUpdateReachesEveryCollarDespiteLoss` edits a paddock under 20 collars and checks that some but not all have it after one second, that all 20 get it, and that each collar reporting the new version really has the new boundary.
+
+Code: [`edge/tower.go`](edge/tower.go) (`Reconcile` and `Tick`), [`lambdas/farm-api/paddocks.go`](lambdas/farm-api/paddocks.go) (`updatePaddock`) and [`ui/src/components/PaddockDetail.tsx`](ui/src/components/PaddockDetail.tsx)
+
+### When is a move "running"?
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/running-dark.svg">
+  <img src="docs/running.svg" alt="A timeline of a 500 m move whose expiry is at 13.4 minutes, in three scenarios. In a normal move the collars report moving until the cows arrive at 7.8 minutes, and the move stops running then. If no collar ever reports moving, the move stops running after the first 30 seconds. If one cow keeps walking, the move keeps running until it is capped at the expiry.">
+</picture>
+
+A running move blocks new moves on its two paddocks, so you can't send a herd into a paddock another herd is still walking out of. Knowing whether a move is still running is harder than it looks, because its state lives in two places: the plan in the farm table, and the truth in the collars' telemetry, which arrives seconds later.
+
+```math
+\text{running}(t) = t < t_{\text{expire}} \ \wedge\ \left( t < t_{\text{start}} + 30 \text{ s} \ \vee\ \exists\, c : \text{moving}_c(t) \right)
+```
+
+Here $\text{moving}_c(t)$ means collar $c$'s latest reading says `moving` and is less than 10 seconds old, and
+
+```math
+t_{\text{expire}} = t_{\text{start}} + \frac{\text{path length}}{0.8 \text{ m/s}} + 3 \text{ min}
+```
+
+Each part has a job:
+
+- **Telemetry ends it early.** The expiry is deliberately generous: cows walk at 1 m/s, but it assumes 0.8. On a 500 m lane the cows arrive after 7.8 minutes, while the expiry is 13.4. A move stops running as soon as no collar reports `moving`, so the farmer doesn't wait almost six minutes for nothing.
+- **The first 30 seconds cover the gap.** A new move reaches the tower on its next `/world` read, up to 10 seconds later, and the first `moving` readings come after that. Without this window a brand-new move would look finished, and a second move could start on the same paddocks straight away.
+- **The expiry is a hard upper bound, like a lease.** A cow that never finds the gate, or a collar stuck on `moving`, can't block the paddocks forever.
+- **Only fresh readings count.** A collar that goes silent stops counting after 10 seconds, so a dead collar can't keep a move alive.
+
+**One rule, used in two places.** The API uses it to refuse a conflicting move with a `409`, and the map uses it to decide whether to show the move and its Turn back button. They used to disagree. The API only looked at the expiry, so after the cows had arrived the map showed no move while the API still refused a new one. Now both use the same rule.
+
+`TestShiftRunningUntilItsCowsStopMoving` covers four cases: just started with no readings yet, cows still walking, cows arrived before the expiry, and expired even though a reading still says `moving`.
+
+Code: [`lambdas/farm-api/shifts.go`](lambdas/farm-api/shifts.go) (`running`, `movingCollars` and `createShift`) and [`ui/src/useShifts.ts`](ui/src/useShifts.ts) (`useActiveShifts`)
+
