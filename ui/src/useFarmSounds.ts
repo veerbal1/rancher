@@ -2,9 +2,9 @@ import { useEffect, useRef } from 'react'
 import type { MapRef } from '@vis.gl/react-maplibre'
 import type { Cow } from './useCows'
 
-const MOO_EVERY_S = { grazing: [10, 25], moving: [4, 10] }
-const BELL_VOLUME = 0.4
-const MOO_VOLUME = 0.4
+const MOO_EVERY_S = { grazing: [25, 40], moving: [25, 40] }
+const BELL_VOLUME = 0.1
+const MOO_VOLUME = 0.1
 
 const between = ([min, max]: number[]) => min + Math.random() * (max - min)
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
