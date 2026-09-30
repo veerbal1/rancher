@@ -17,14 +17,15 @@ const (
 )
 
 type Shift struct {
-	ToID  string
-	From  Polygon
-	To    Polygon
-	Lane  Lane
-	Gate  Point
-	gateM float64
-	Fence MoveFence
-	Start time.Time
+	ToID      string
+	From      Polygon
+	To        Polygon
+	Lane      Lane
+	Gate      Point
+	gateM     float64
+	Fence     MoveFence
+	Start     time.Time
+	ToVersion int
 }
 
 func NewShift(toID string, from, to Polygon, path []Point, widthM float64, start time.Time) *Shift {

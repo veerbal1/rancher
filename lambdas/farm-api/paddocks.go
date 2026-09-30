@@ -26,12 +26,13 @@ type Polygon struct {
 }
 
 type Paddock struct {
-	ID        string  `json:"id"         dynamodbav:"id"`
-	FarmerID  string  `json:"farmer_id"  dynamodbav:"farmer_id"`
-	Name      string  `json:"name"       dynamodbav:"name"`
-	Polygon   Polygon `json:"polygon"    dynamodbav:"polygon"`
-	AreaHa    float64 `json:"area_ha"    dynamodbav:"area_ha"`
-	CreatedAt string  `json:"created_at" dynamodbav:"created_at"`
+	ID           string  `json:"id"         dynamodbav:"id"`
+	FarmerID     string  `json:"farmer_id"  dynamodbav:"farmer_id"`
+	Name         string  `json:"name"       dynamodbav:"name"`
+	Polygon      Polygon `json:"polygon"    dynamodbav:"polygon"`
+	AreaHa       float64 `json:"area_ha"    dynamodbav:"area_ha"`
+	FenceVersion int     `json:"fence_version" dynamodbav:"fence_version"`
+	CreatedAt    string  `json:"created_at" dynamodbav:"created_at"`
 }
 
 type paddockItem struct {
@@ -61,12 +62,13 @@ func createPaddock(ctx context.Context, farmerID, body string) (events.APIGatewa
 	}
 
 	p := Paddock{
-		ID:        rand.Text(),
-		FarmerID:  farmerID,
-		Name:      fmt.Sprintf("Paddock #%d", n),
-		Polygon:   in.Polygon,
-		AreaHa:    areaHa(in.Polygon.Coordinates[0]),
-		CreatedAt: time.Now().UTC().Format(time.RFC3339),
+		ID:           rand.Text(),
+		FarmerID:     farmerID,
+		Name:         fmt.Sprintf("Paddock #%d", n),
+		Polygon:      in.Polygon,
+		AreaHa:       areaHa(in.Polygon.Coordinates[0]),
+		FenceVersion: 1,
+		CreatedAt:    time.Now().UTC().Format(time.RFC3339),
 	}
 	item, err := attributevalue.MarshalMap(paddockItem{PK: "FARMER#" + farmerID, SK: "PADDOCK#" + p.ID, Paddock: p})
 	if err != nil {
@@ -146,7 +148,7 @@ func updatePaddock(ctx context.Context, farmerID, paddockID, body string) (event
 		return respond(http.StatusBadRequest, errorBody("send a name, a polygon, or both"))
 	}
 
-	var sets []string
+	var sets, adds []string
 	names := map[string]string{}
 	values := map[string]types.AttributeValue{}
 	if in.Name != nil {
@@ -167,18 +169,24 @@ func updatePaddock(ctx context.Context, farmerID, paddockID, body string) (event
 			return events.APIGatewayV2HTTPResponse{}, err
 		}
 		sets = append(sets, "#polygon = :polygon", "area_ha = :area")
+		adds = append(adds, "fence_version :one")
+		values[":one"] = &types.AttributeValueMemberN{Value: "1"}
 		names["#polygon"] = "polygon"
 		values[":polygon"] = polygon
 		values[":area"] = &types.AttributeValueMemberN{Value: strconv.FormatFloat(areaHa(in.Polygon.Coordinates[0]), 'f', -1, 64)}
 	}
 
+	update := "SET " + strings.Join(sets, ", ")
+	if len(adds) > 0 {
+		update += " ADD " + strings.Join(adds, ", ")
+	}
 	out, err := db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName: aws.String(table),
 		Key: map[string]types.AttributeValue{
 			"PK": &types.AttributeValueMemberS{Value: "FARMER#" + farmerID},
 			"SK": &types.AttributeValueMemberS{Value: "PADDOCK#" + paddockID},
 		},
-		UpdateExpression:          aws.String("SET " + strings.Join(sets, ", ")),
+		UpdateExpression:          aws.String(update),
 		ConditionExpression:       aws.String("attribute_exists(PK)"),
 		ExpressionAttributeNames:  names,
 		ExpressionAttributeValues: values,

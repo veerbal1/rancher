@@ -12,19 +12,26 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import type { Collar } from '@/useCollars'
+import type { Cow } from '@/useCows'
 import type { Paddock } from '@/usePaddocks'
 import { AddCollarsDialog } from './AddCollarsDialog'
 
 type Props = {
   collars: Collar[]
+  cows: Cow[]
   paddocks: Paddock[]
   canAdd: boolean
   onAdd: (count: number) => Promise<void>
   onDelete: (collar: Collar) => Promise<void>
 }
 
-export function CollarsSection({ collars, paddocks, canAdd, onAdd, onDelete }: Props) {
+export function CollarsSection({ collars, cows, paddocks, canAdd, onAdd, onDelete }: Props) {
   const paddockName = (id: string | null) => paddocks.find((p) => p.id === id)?.name
+  const syncing = (c: Collar) => {
+    const cow = cows.find((w) => w.collar_id === c.id)
+    const paddock = paddocks.find((p) => p.id === c.paddock_id)
+    return !!cow && !!paddock && cow.state !== 'moving' && (cow.fence_version ?? 0) < (paddock.fence_version ?? 0)
+  }
   const unassigned = collars.filter((c) => !c.paddock_id).length
 
   const [pending, setPending] = useState<Collar | null>(null)
@@ -83,7 +90,10 @@ export function CollarsSection({ collars, paddocks, canAdd, onAdd, onDelete }: P
               </div>
               <div className="min-w-0 flex-1 leading-tight">
                 <p>{c.name}</p>
-                <p className="truncate text-xs text-muted-foreground">{paddockName(c.paddock_id) ?? 'Unassigned'}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {paddockName(c.paddock_id) ?? 'Unassigned'}
+                  {syncing(c) && <span className="text-amber-700"> · syncing</span>}
+                </p>
               </div>
               <Button
                 variant="ghost"

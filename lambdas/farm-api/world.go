@@ -15,9 +15,10 @@ import (
 )
 
 type WorldPaddock struct {
-	ID      string  `json:"id"      dynamodbav:"id"`
-	Name    string  `json:"name"    dynamodbav:"name"`
-	Polygon Polygon `json:"polygon" dynamodbav:"polygon"`
+	ID           string  `json:"id"            dynamodbav:"id"`
+	Name         string  `json:"name"          dynamodbav:"name"`
+	Polygon      Polygon `json:"polygon"       dynamodbav:"polygon"`
+	FenceVersion int     `json:"fence_version" dynamodbav:"fence_version"`
 }
 
 type WorldCollar struct {

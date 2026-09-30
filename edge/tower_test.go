@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -43,7 +44,7 @@ func TestReconcileSequence(t *testing.T) {
 	}
 
 	world.Paddocks = []WorldPaddock{worldPaddock("A", square(120)), paddockB}
-	check("redraw A", tower.Reconcile(world), ReconcileResult{FenceChanged: 2}, 3)
+	check("redraw A", tower.Reconcile(world), ReconcileResult{FenceQueued: 2}, 3)
 
 	world.Collars = []WorldCollar{worldCollar("c1", 1, "A"), worldCollar("c2", 2, "B"), worldCollar("c3", 3, ""), worldCollar("c4", 4, "")}
 	check("unassign c3", tower.Reconcile(world), ReconcileResult{Removed: 1}, 2)
@@ -99,4 +100,57 @@ func TestSpawnIsDeterministic(t *testing.T) {
 	if ca, cb := a.collars["c1"].cow, b.collars["c1"].cow; ca.Lat != cb.Lat || ca.Lng != cb.Lng {
 		t.Errorf("same collar spawned at (%v, %v) and (%v, %v)", ca.Lat, ca.Lng, cb.Lat, cb.Lng)
 	}
+}
+
+func TestFenceUpdateReachesEveryCollarDespiteLoss(t *testing.T) {
+	v1 := worldPaddock("A", square(100))
+	v1.FenceVersion = 1
+	v2 := worldPaddock("A", square(120))
+	v2.FenceVersion = 2
+
+	var collars []WorldCollar
+	for i := 1; i <= 20; i++ {
+		collars = append(collars, worldCollar(fmt.Sprintf("c%d", i), i, "A"))
+	}
+	tower := NewTower("F1")
+	tower.Reconcile(farm([]WorldPaddock{v1}, collars...))
+
+	if r := tower.Reconcile(farm([]WorldPaddock{v2}, collars...)); r.FenceQueued != 20 {
+		t.Fatalf("edit queued %d updates, want 20 (%+v)", r.FenceQueued, r)
+	}
+	if r := tower.Reconcile(farm([]WorldPaddock{v2}, collars...)); r != (ReconcileResult{}) {
+		t.Errorf("re-reading the same world queued again: %+v", r)
+	}
+
+	updated := func() int {
+		n := 0
+		for _, col := range tower.order {
+			if col.fenceVersion == 2 {
+				n++
+			}
+		}
+		return n
+	}
+	now := time.Unix(1_000, 0)
+	var afterFirst, ticks int
+	for ticks = 1; ticks <= 30 && updated() < 20; ticks++ {
+		now = now.Add(time.Second)
+		tower.Tick(now, func(Event) {})
+		if ticks == 1 {
+			afterFirst = updated()
+		}
+	}
+
+	if afterFirst == 0 || afterFirst == 20 {
+		t.Errorf("after one tick %d/20 collars updated, want some but not all (lossy radio)", afterFirst)
+	}
+	if updated() != 20 {
+		t.Fatalf("only %d/20 collars updated after %d ticks", updated(), ticks)
+	}
+	for _, col := range tower.order {
+		if !sameFence(col.fence, square(120)) {
+			t.Errorf("%s reports version 2 but still has the old boundary", col.ID)
+		}
+	}
+	t.Logf("%d/20 after the first tick, all 20 after %d ticks", afterFirst, ticks-1)
 }

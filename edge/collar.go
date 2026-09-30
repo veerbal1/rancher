@@ -105,7 +105,8 @@ type Collar struct {
 	calm   int
 	gaveUp bool
 
-	side Side
+	side         Side
+	fenceVersion int
 
 	shift     *Shift
 	guiding   bool
@@ -277,6 +278,7 @@ func (col *Collar) followShift(now time.Time) {
 	lng, lat := col.cow.Lng, col.cow.Lat
 	if s.To.Evaluate(lng, lat, col.warnM) == ZoneInside {
 		col.fence, col.shift, col.guiding, col.guideSide = s.To, nil, false, SideNone
+		col.fenceVersion = s.ToVersion
 		col.cow.Wander = grazeWander
 		return
 	}

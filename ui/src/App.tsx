@@ -296,6 +296,7 @@ function App() {
             key={selectedPaddock.id}
             paddock={selectedPaddock}
             collars={collars}
+            cows={cows}
             paddocks={paddocks}
             onRename={renameSelectedPaddock}
             onEditBoundary={startReshape}
@@ -304,7 +305,7 @@ function App() {
             onMoveHerd={startDrawingPath}
           />
         )}
-        <CollarsSection collars={collars} paddocks={paddocks} canAdd={!!selectedFarmer} onAdd={addCollars} onDelete={removeCollar} />
+        <CollarsSection collars={collars} cows={cows} paddocks={paddocks} canAdd={!!selectedFarmer} onAdd={addCollars} onDelete={removeCollar} />
       </MenuPanel>
 
       <Toaster theme="light" position="top-center" />

@@ -7,6 +7,7 @@ export type Paddock = {
   name: string
   polygon: { type: 'Polygon'; coordinates: LngLat[][] }
   area_ha: number
+  fence_version?: number
   created_at: string
 }
 

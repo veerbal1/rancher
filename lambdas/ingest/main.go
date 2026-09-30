@@ -15,17 +15,18 @@ import (
 )
 
 type Event struct {
-	FarmerID  string  `json:"farmer_id"  dynamodbav:"farmer_id"`
-	Seq       uint64  `json:"seq"        dynamodbav:"seq"`
-	Time      string  `json:"time"       dynamodbav:"time"`
-	CollarID  string  `json:"collar_id"  dynamodbav:"collar_id"`
-	PaddockID string  `json:"paddock_id" dynamodbav:"paddock_id"`
-	Lat       float64 `json:"lat"        dynamodbav:"lat"`
-	Lng       float64 `json:"lng"        dynamodbav:"lng"`
-	Heading   float64 `json:"heading"    dynamodbav:"heading"`
-	State     string  `json:"state"      dynamodbav:"state"`
-	Level     string  `json:"level"      dynamodbav:"level"`
-	Side      string  `json:"side"       dynamodbav:"side"`
+	FarmerID     string  `json:"farmer_id"  dynamodbav:"farmer_id"`
+	Seq          uint64  `json:"seq"        dynamodbav:"seq"`
+	Time         string  `json:"time"       dynamodbav:"time"`
+	CollarID     string  `json:"collar_id"  dynamodbav:"collar_id"`
+	PaddockID    string  `json:"paddock_id" dynamodbav:"paddock_id"`
+	Lat          float64 `json:"lat"        dynamodbav:"lat"`
+	Lng          float64 `json:"lng"        dynamodbav:"lng"`
+	Heading      float64 `json:"heading"    dynamodbav:"heading"`
+	State        string  `json:"state"      dynamodbav:"state"`
+	Level        string  `json:"level"      dynamodbav:"level"`
+	Side         string  `json:"side"       dynamodbav:"side"`
+	FenceVersion int     `json:"fence_version" dynamodbav:"fence_version"`
 }
 
 var (

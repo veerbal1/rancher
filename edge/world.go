@@ -36,9 +36,10 @@ type WorldFarm struct {
 }
 
 type WorldPaddock struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Polygon struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	FenceVersion int    `json:"fence_version"`
+	Polygon      struct {
 		Coordinates [][][2]float64 `json:"coordinates"`
 	} `json:"polygon"`
 }

@@ -17,17 +17,18 @@ import (
 const sendToKinesis = true
 
 type Event struct {
-	FarmerID  string    `json:"farmer_id"`
-	Seq       uint64    `json:"seq"`
-	Time      time.Time `json:"time"`
-	CollarID  string    `json:"collar_id"`
-	PaddockID string    `json:"paddock_id"`
-	Lat       float64   `json:"lat"`
-	Lng       float64   `json:"lng"`
-	Heading   float64   `json:"heading"`
-	State     State     `json:"state"`
-	Level     Cue       `json:"level"`
-	Side      Side      `json:"side"`
+	FarmerID     string    `json:"farmer_id"`
+	Seq          uint64    `json:"seq"`
+	Time         time.Time `json:"time"`
+	CollarID     string    `json:"collar_id"`
+	PaddockID    string    `json:"paddock_id"`
+	Lat          float64   `json:"lat"`
+	Lng          float64   `json:"lng"`
+	Heading      float64   `json:"heading"`
+	State        State     `json:"state"`
+	Level        Cue       `json:"level"`
+	Side         Side      `json:"side"`
+	FenceVersion int       `json:"fence_version"`
 }
 
 func main() {
@@ -88,7 +89,7 @@ func applyWorld(towers map[string]*Tower, w World) {
 			log.Printf("tower %s: up", f.Name)
 		}
 		if r := t.Reconcile(f); r != (ReconcileResult{}) {
-			log.Printf("tower %s: +%d cows, %d fences changed, %d shifting, -%d cows, %d cows now", t.Name, r.Added, r.FenceChanged, r.Shifted, r.Removed, len(t.order))
+			log.Printf("tower %s: +%d cows, %d fences changed, %d fence updates queued, %d shifting, -%d cows, %d cows now", t.Name, r.Added, r.FenceChanged, r.FenceQueued, r.Shifted, r.Removed, len(t.order))
 		}
 	}
 	for id, t := range towers {

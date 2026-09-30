@@ -15,12 +15,14 @@ import {
 } from '@/components/ui/alert-dialog'
 import type { Paddock } from '@/usePaddocks'
 import type { Collar } from '@/useCollars'
+import type { Cow } from '@/useCows'
 import { AssignCollarsDialog } from './AssignCollarsDialog'
 import { MoveHerdDialog } from './MoveHerdDialog'
 
 type Props = {
   paddock: Paddock
   collars: Collar[]
+  cows: Cow[]
   paddocks: Paddock[]
   onRename: (name: string) => Promise<void>
   onEditBoundary: () => void
@@ -29,8 +31,13 @@ type Props = {
   onMoveHerd: (toPaddockId: string) => void
 }
 
-export function PaddockDetail({ paddock, collars, paddocks, onRename, onEditBoundary, onDelete, onAssignCollars, onMoveHerd }: Props) {
+export function PaddockDetail({ paddock, collars, cows, paddocks, onRename, onEditBoundary, onDelete, onAssignCollars, onMoveHerd }: Props) {
   const collarCount = collars.filter((c) => c.paddock_id === paddock.id).length
+  const version = paddock.fence_version ?? 0
+  const here = new Set(collars.filter((c) => c.paddock_id === paddock.id).map((c) => c.id))
+  const reporting = cows.filter((c) => here.has(c.collar_id) && c.state !== 'moving')
+  const updated = reporting.filter((c) => (c.fence_version ?? 0) >= version).length
+  const synced = updated === reporting.length
 
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(paddock.name)
@@ -135,6 +142,11 @@ export function PaddockDetail({ paddock, collars, paddocks, onRename, onEditBoun
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">{paddock.area_ha} ha</p>
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className={`size-2 rounded-full ${synced ? 'bg-emerald-500' : 'animate-pulse bg-amber-500'}`} />
+              Fence v{version}
+              {reporting.length > 0 && ` · ${updated}/${reporting.length} updated`}
+            </p>
           </div>
 
           <div className="flex items-center gap-1.5">
