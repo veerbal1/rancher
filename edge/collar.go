@@ -288,7 +288,9 @@ func (col *Collar) followShift(now time.Time) {
 	col.cow.Wander = grazeWander
 	if !s.From.Contains(lng, lat) && !s.To.Contains(lng, lat) {
 		col.cow.Wander = laneWander
-		col.cow.SteerTo(targetLng, targetLat, followRate)
+		if math.Abs(col.cow.BearingDiff(targetLng, targetLat)) < behindRad {
+			col.cow.SteerTo(targetLng, targetLat, followRate)
+		}
 	}
 	col.guide(targetLng, targetLat, driftM)
 }

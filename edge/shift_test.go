@@ -338,66 +338,73 @@ func TestTurnBackMidLaneWalksTheHerdHome(t *testing.T) {
 		}
 		return s
 	}
-	farm := func(paddockID string, shifts ...WorldShift) WorldFarm {
-		f := WorldFarm{FarmerID: "F", Paddocks: []WorldPaddock{paddock("A", a), paddock("B", b)}, Shifts: shifts}
-		for i := 1; i <= 5; i++ {
-			f.Collars = append(f.Collars, WorldCollar{ID: fmt.Sprintf("C%d", i), Number: i, PaddockID: &paddockID})
-		}
-		return f
-	}
 	reversed := make([]Point, len(lane))
 	for i, p := range lane {
 		reversed[len(lane)-1-i] = p
 	}
 
-	t0 := time.Unix(1_000, 0)
-	tower := NewTower("F")
-	tower.Reconcile(farm("A"))
-	tower.Reconcile(farm("B", worldShift("A", "B", lane, t0)))
+	for _, herd := range []int{5, 8, 10} {
+		for _, need := range []int{3, 5} {
+			t.Run(fmt.Sprintf("%d cows, back after %d in the lane", herd, need), func(t *testing.T) {
+				farm := func(paddockID string, shifts ...WorldShift) WorldFarm {
+					f := WorldFarm{FarmerID: "F", Paddocks: []WorldPaddock{paddock("A", a), paddock("B", b)}, Shifts: shifts}
+					for i := 1; i <= herd; i++ {
+						f.Collars = append(f.Collars, WorldCollar{ID: fmt.Sprintf("C%d", i), Number: i, PaddockID: &paddockID})
+					}
+					return f
+				}
 
-	now := t0
-	tick := func() {
-		now = now.Add(time.Second)
-		tower.Tick(now, func(Event) {})
-		for _, col := range tower.order {
-			if col.State() == Breached {
-				t.Fatalf("collar %s breached at %s", col.ID, now.Sub(t0))
-			}
+				t0 := time.Unix(1_000, 0)
+				tower := NewTower("F")
+				tower.Reconcile(farm("A"))
+				tower.Reconcile(farm("B", worldShift("A", "B", lane, t0)))
+
+				now := t0
+				tick := func() {
+					now = now.Add(time.Second)
+					tower.Tick(now, func(Event) {})
+					for _, col := range tower.order {
+						if col.State() == Breached {
+							t.Fatalf("collar %s breached at %s", col.ID, now.Sub(t0))
+						}
+					}
+				}
+				inLane := func() int {
+					n := 0
+					for _, col := range tower.order {
+						if !a.Contains(col.cow.Lng, col.cow.Lat) && !b.Contains(col.cow.Lng, col.cow.Lat) {
+							n++
+						}
+					}
+					return n
+				}
+				for i := 0; i < 600 && inLane() < need; i++ {
+					tick()
+				}
+				if inLane() < need {
+					t.Fatalf("only %d cows reached the lane before turning back", inLane())
+				}
+
+				if r := tower.Reconcile(farm("A", worldShift("B", "A", reversed, now))); r.Shifted != herd {
+					t.Fatalf("turn back started %d shifts, want %d (%+v)", r.Shifted, herd, r)
+				}
+
+				home := func() bool {
+					for _, col := range tower.order {
+						if col.shift != nil || col.PaddockID != "A" || !a.Contains(col.cow.Lng, col.cow.Lat) {
+							return false
+						}
+					}
+					return true
+				}
+				for i := 0; i < 1200 && !home(); i++ {
+					tick()
+				}
+				if !home() {
+					t.Fatalf("herd not home in paddock A %s after turning back", now.Sub(t0))
+				}
+				t.Logf("herd home %s after the move started", now.Sub(t0))
+			})
 		}
 	}
-	inLane := func() int {
-		n := 0
-		for _, col := range tower.order {
-			if !a.Contains(col.cow.Lng, col.cow.Lat) && !b.Contains(col.cow.Lng, col.cow.Lat) {
-				n++
-			}
-		}
-		return n
-	}
-	for i := 0; i < 600 && inLane() < 3; i++ {
-		tick()
-	}
-	if inLane() < 3 {
-		t.Fatalf("only %d cows reached the lane before turning back", inLane())
-	}
-
-	if r := tower.Reconcile(farm("A", worldShift("B", "A", reversed, now))); r.Shifted != 5 {
-		t.Fatalf("turn back started %d shifts, want 5 (%+v)", r.Shifted, r)
-	}
-
-	home := func() bool {
-		for _, col := range tower.order {
-			if col.shift != nil || col.PaddockID != "A" || !a.Contains(col.cow.Lng, col.cow.Lat) {
-				return false
-			}
-		}
-		return true
-	}
-	for i := 0; i < 1200 && !home(); i++ {
-		tick()
-	}
-	if !home() {
-		t.Fatalf("herd not home in paddock A %s after turning back", now.Sub(t0))
-	}
-	t.Logf("herd home %s after the move started", now.Sub(t0))
 }
