@@ -364,3 +364,35 @@ While guiding, it fires the emitter away from the target (both if the target is 
 
 Code: [`edge/lane.go`](edge/lane.go) (`Gate`, `segmentHit` and `MoveFence`), [`edge/shift.go`](edge/shift.go) (`Guide`) and [`edge/collar.go`](edge/collar.go) (`followShift` and `guide`)
 
+### Turn back
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/turnback-dark.svg">
+  <img src="docs/turnback.svg" alt="A real simulator run: five cows walk from the old paddock toward the gate and into the lane. 47 seconds in the farmer presses Turn back, and all five are home again 25 seconds later. One API call ends the move, starts a new one with the path reversed and points every collar back at the old paddock, all in one transaction. The collar has no turn-back code: a cow in the lane turns and follows it home, a cow still in the old paddock is already home, and a cow already in the new paddock heads for its gate.">
+</picture>
+
+A move can be reversed at any moment. One API call does it in a single DynamoDB transaction:
+
+1. **End the current move now.** The write is conditional on the move not having changed since it was read.
+2. **Start a new move** with the same collars and lane, starting now, and the path reversed. If the path has length $\ell$:
+
+   ```math
+   \text{path}_{\text{back}}(s) = \text{path}(\ell - s)
+   ```
+
+3. **Point every collar back** at the old paddock.
+
+If the move hasn't started yet, it's simply cancelled. If anything changed in the meantime, the transaction fails with a `409` and nothing is left half-done.
+
+**There's no turn-back code on the collar.** Where she aims depends only on where she is, so a reversed path makes every cow do the right thing from wherever she happens to be:
+
+| Where she is | What she does |
+|---|---|
+| In the lane | The point 5 m ahead on the reversed path is now behind her, more than 150° away, so both emitters fire and she turns around, then follows the lane home |
+| Still in the old paddock | That's the new move's destination, so she heads for its centre and arrives |
+| Already in the new paddock | She heads for the reversed path's gate, where it first leaves that paddock, then walks the lane home |
+
+In the run above, the farmer turned back 47 seconds in, with three cows already in the lane. All five were home 25 seconds later, and none was ever breached. `TestTurnBackMidLaneWalksTheHerdHome` turns back herds of 5, 8 and 10 cows, once 3 or 5 are in the lane, and fails if any collar breaches or the herd isn't home in time.
+
+Code: [`lambdas/farm-api/shifts.go`](lambdas/farm-api/shifts.go) (`turnBackShift`) and [`edge/tower.go`](edge/tower.go) (`Reconcile`)
+
