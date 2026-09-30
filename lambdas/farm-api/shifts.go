@@ -22,6 +22,8 @@ const (
 	shiftLeadTime      = 10 * time.Second
 	shiftWalkMS        = 0.8
 	shiftGrace         = 3 * time.Minute
+	shiftStartupGrace  = 30 * time.Second
+	readingFreshFor    = 10 * time.Second
 	maxCollarsPerShift = 98
 	maxPathPoints      = 100
 	defaultLaneWidthM  = 8.0
@@ -53,6 +55,48 @@ type shiftItem struct {
 }
 
 func (s Shift) active(now string) bool { return s.ExpiresAt > now }
+
+func (s Shift) running(now time.Time, moving map[string]bool) bool {
+	if !s.active(now.Format(time.RFC3339)) {
+		return false
+	}
+	start, err := time.Parse(time.RFC3339, s.StartAt)
+	if err != nil || now.Before(start.Add(shiftStartupGrace)) {
+		return true
+	}
+	for _, id := range s.CollarIDs {
+		if moving[id] {
+			return true
+		}
+	}
+	return false
+}
+
+func movingCollars(ctx context.Context, farmerID string, now time.Time) (map[string]bool, error) {
+	moving := map[string]bool{}
+	pages := dynamodb.NewQueryPaginator(db, &dynamodb.QueryInput{
+		TableName:                aws.String(cowTable),
+		KeyConditionExpression:   aws.String("farmer_id = :f"),
+		ProjectionExpression:     aws.String("collar_id, #s, #t"),
+		ExpressionAttributeNames: map[string]string{"#s": "state", "#t": "time"},
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":f": &types.AttributeValueMemberS{Value: farmerID},
+		},
+	})
+	for pages.HasMorePages() {
+		page, err := pages.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range page.Items {
+			at, err := time.Parse(time.RFC3339Nano, stringAttr(item["time"]))
+			if err == nil && now.Sub(at) < readingFreshFor && stringAttr(item["state"]) == "moving" {
+				moving[stringAttr(item["collar_id"])] = true
+			}
+		}
+	}
+	return moving, nil
+}
 
 func createShift(ctx context.Context, farmerID, body string) (events.APIGatewayV2HTTPResponse, error) {
 	var in struct {
@@ -94,7 +138,16 @@ func createShift(ctx context.Context, farmerID, body string) (events.APIGatewayV
 	if err != nil {
 		return events.APIGatewayV2HTTPResponse{}, err
 	}
+	var moving map[string]bool
+	if len(shifts) > 0 {
+		if moving, err = movingCollars(ctx, farmerID, now); err != nil {
+			return events.APIGatewayV2HTTPResponse{}, err
+		}
+	}
 	for _, s := range shifts {
+		if !s.running(now, moving) {
+			continue
+		}
 		for _, id := range []string{s.FromPaddockID, s.ToPaddockID} {
 			if id == in.FromPaddockID || id == in.ToPaddockID {
 				return respond(http.StatusConflict, errorBody("a shift is already running for one of these paddocks"))

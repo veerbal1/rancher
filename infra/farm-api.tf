@@ -25,11 +25,18 @@ resource "aws_iam_role_policy" "farm_api_dynamodb" {
   role = aws_iam_role.farm_api.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["dynamodb:PutItem", "dynamodb:Scan", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:GetItem"]
-      Resource = aws_dynamodb_table.rancher.arn
-    }]
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:PutItem", "dynamodb:Scan", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:GetItem"]
+        Resource = aws_dynamodb_table.rancher.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:Query"]
+        Resource = aws_dynamodb_table.cow_positions.arn
+      },
+    ]
   })
 }
 
@@ -44,7 +51,8 @@ resource "aws_lambda_function" "farm_api" {
 
   environment {
     variables = {
-      TABLE_NAME = aws_dynamodb_table.rancher.name
+      TABLE_NAME     = aws_dynamodb_table.rancher.name
+      COW_TABLE_NAME = aws_dynamodb_table.cow_positions.name
     }
   }
 }

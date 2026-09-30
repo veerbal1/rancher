@@ -39,8 +39,9 @@ type farmerItem struct {
 }
 
 var (
-	db    *dynamodb.Client
-	table = os.Getenv("TABLE_NAME")
+	db       *dynamodb.Client
+	table    = os.Getenv("TABLE_NAME")
+	cowTable = os.Getenv("COW_TABLE_NAME")
 )
 
 func main() {
