@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 400" width="1000" height="400" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<defs>
+<marker id="arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#656d76"/></marker>
+<marker id="arrow-right" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2f6fdb"/></marker>
+<marker id="arrow-left" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8250df"/></marker>
+<marker id="arrow-home" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2e9e5b"/></marker>
+<marker id="arrow-text" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f2328"/></marker>
+<marker id="arrow-emitter" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f59e0b"/></marker>
+</defs>
+<rect x="1" y="1" width="998" height="398" rx="14" fill="#ffffff" stroke="#d0d7de"/>
+<line x1="333" y1="30" x2="333" y2="370" stroke="#d0d7de"/>
+<line x1="666" y1="30" x2="666" y2="370" stroke="#d0d7de"/>
+<text x="28.0" y="42.0" font-size="16" fill="#1f2328" text-anchor="start" font-weight="600">1 · Which side is the wall on?</text>
+<line x1="205.0" y1="96.0" x2="318.0" y2="209.0" stroke="#2e9e5b" stroke-width="3"/>
+<line x1="22.0" y1="170.0" x2="116.0" y2="92.0" stroke="#2e9e5b" stroke-width="3"/>
+<line x1="166.0" y1="240.0" x2="166.0" y2="192.0" stroke="#656d76" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrow-muted)"/>
+<line x1="181.6" y1="246.4" x2="268.5" y2="159.5" stroke="#2f6fdb" stroke-width="1.6" stroke-dasharray="2 3"/>
+<circle cx="268.5" cy="159.5" r="4.5" fill="#2f6fdb"/>
+<path d="M166.0,208.0 A54,54 0 0 1 204.2,223.8" fill="none" stroke="#2f6fdb" stroke-width="1.6" marker-end="url(#arrow-right)"/>
+<text x="230.0" y="240.0" font-size="12.5" fill="#2f6fdb" text-anchor="start" font-weight="600">θ = +45°</text>
+<text x="280.5" y="161.5" font-size="12" fill="#2f6fdb" text-anchor="start" font-weight="600">right wall</text>
+<line x1="152.0" y1="245.1" x2="62.1" y2="136.8" stroke="#8250df" stroke-width="1.6" stroke-dasharray="2 3"/>
+<circle cx="62.1" cy="136.8" r="4.5" fill="#8250df"/>
+<path d="M166.0,222.0 A40,40 0 0 0 140.5,231.2" fill="none" stroke="#8250df" stroke-width="1.6" marker-end="url(#arrow-left)"/>
+<text x="96.0" y="240.0" font-size="12.5" fill="#8250df" text-anchor="end" font-weight="600">θ = -40°</text>
+<text x="50.1" y="154.8" font-size="12" fill="#8250df" text-anchor="end" font-weight="600">left wall</text>
+<g transform="translate(166.0,262.0) rotate(0.0)">
+<ellipse cx="0" cy="6" rx="8.5" ry="13" fill="#1f2328"/>
+<ellipse cx="0" cy="-11" rx="5" ry="6.5" fill="#1f2328"/>
+<circle cx="-8.5" cy="-9" r="4.2" fill="#afb8c1" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="8.5" cy="-9" r="4.2" fill="#afb8c1" stroke="#ffffff" stroke-width="1.5"/>
+</g>
+<text x="28.0" y="352.0" font-size="13" fill="#1f2328" text-anchor="start" font-weight="normal">Signed angle from her heading to the wall:</text>
+<text x="28.0" y="372.0" font-size="13" fill="#656d76" text-anchor="start" font-weight="normal">positive is right, negative is left.</text>
+<text x="361.0" y="42.0" font-size="16" fill="#1f2328" text-anchor="start" font-weight="600">2 · In a corner: both</text>
+<path d="M372,120 L612,120 L612,310 L372,310 z" fill="#2e9e5b1c"/>
+<line x1="372.0" y1="120.0" x2="612.0" y2="120.0" stroke="#2e9e5b" stroke-width="3"/>
+<line x1="612.0" y1="120.0" x2="612.0" y2="310.0" stroke="#2e9e5b" stroke-width="3"/>
+<line x1="548.0" y1="184.0" x2="548.0" y2="120.0" stroke="#8250df" stroke-width="1.4" stroke-dasharray="2 3"/>
+<circle cx="548.0" cy="120.0" r="4.5" fill="#8250df"/>
+<line x1="548.0" y1="184.0" x2="612.0" y2="184.0" stroke="#2f6fdb" stroke-width="1.4" stroke-dasharray="2 3"/>
+<circle cx="612.0" cy="184.0" r="4.5" fill="#2f6fdb"/>
+<line x1="563.6" y1="168.4" x2="589.0" y2="143.0" stroke="#656d76" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrow-muted)"/>
+<path d="M579.9,172.4 A34,34 0 1 1 516.1,172.4" fill="none" stroke="#f59e0b" stroke-width="1.6" marker-end="url(#arrow-emitter)"/>
+<g transform="translate(548.0,184.0) rotate(45.0)">
+<ellipse cx="0" cy="6" rx="8.5" ry="13" fill="#1f2328"/>
+<ellipse cx="0" cy="-11" rx="5" ry="6.5" fill="#1f2328"/>
+<circle cx="-8.5" cy="-9" r="4.2" fill="#f59e0b" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="8.5" cy="-9" r="4.2" fill="#f59e0b" stroke="#ffffff" stroke-width="1.5"/>
+</g>
+<text x="508.0" y="110.0" font-size="12" fill="#8250df" text-anchor="middle" font-weight="600">left: 9 s</text>
+<text x="626.0" y="188.0" font-size="12" fill="#2f6fdb" text-anchor="start" font-weight="600">right: 9 s</text>
+<text x="464.0" y="238.0" font-size="12.5" fill="#f59e0b" text-anchor="middle" font-weight="600">both fire → turn around</text>
+<text x="361.0" y="352.0" font-size="13" fill="#1f2328" text-anchor="start" font-weight="normal">Every wall is checked, not just the nearest.</text>
+<text x="361.0" y="372.0" font-size="13" fill="#656d76" text-anchor="start" font-weight="normal">Threats on both sides fire both emitters.</text>
+<text x="694.0" y="42.0" font-size="16" fill="#1f2328" text-anchor="start" font-weight="600">3 · Outside: aim for home</text>
+<rect x="694" y="262" width="282" height="60" fill="#2e9e5b1c"/>
+<line x1="694.0" y1="262.0" x2="976.0" y2="262.0" stroke="#2e9e5b" stroke-width="3"/>
+<circle cx="842" cy="300" r="6" fill="#2e9e5b"/>
+<text x="853.0" y="304.0" font-size="12" fill="#2e9e5b" text-anchor="start" font-weight="600">home</text>
+<line x1="813.6" y1="203.2" x2="839.2" y2="290.4" stroke="#2e9e5b" stroke-width="1.4" stroke-dasharray="2 3"/>
+<line x1="808.0" y1="162.0" x2="808.0" y2="126.0" stroke="#656d76" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrow-muted)"/>
+<g transform="translate(808.0,184.0) rotate(0.0)">
+<ellipse cx="0" cy="6" rx="8.5" ry="13" fill="#1f2328"/>
+<ellipse cx="0" cy="-11" rx="5" ry="6.5" fill="#1f2328"/>
+<circle cx="-8.5" cy="-9" r="4.2" fill="#f59e0b" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="8.5" cy="-9" r="4.2" fill="#f59e0b" stroke="#ffffff" stroke-width="1.5"/>
+</g>
+<line x1="923.0" y1="205.2" x2="848.5" y2="292.4" stroke="#2e9e5b" stroke-width="1.4" stroke-dasharray="2 3"/>
+<line x1="914.0" y1="190.0" x2="878.0" y2="190.0" stroke="#656d76" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrow-muted)"/>
+<g transform="translate(936.0,190.0) rotate(270.0)">
+<ellipse cx="0" cy="6" rx="8.5" ry="13" fill="#1f2328"/>
+<ellipse cx="0" cy="-11" rx="5" ry="6.5" fill="#1f2328"/>
+<circle cx="-8.5" cy="-9" r="4.2" fill="#afb8c1" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="8.5" cy="-9" r="4.2" fill="#f59e0b" stroke="#ffffff" stroke-width="1.5"/>
+</g>
+<text x="794.0" y="190.0" font-size="12" fill="#656d76" text-anchor="end" font-weight="normal">+164°</text>
+<text x="936.0" y="224.0" font-size="12" fill="#656d76" text-anchor="middle" font-weight="normal">-49°</text>
+<text x="704.0" y="96.0" font-size="12" fill="#1f2328" text-anchor="start" font-weight="600">home behind (>150°):</text>
+<text x="704.0" y="112.0" font-size="12" fill="#f59e0b" text-anchor="start" font-weight="600">both fire, she turns around</text>
+<text x="968.0" y="140.0" font-size="12" fill="#1f2328" text-anchor="end" font-weight="600">home to her left:</text>
+<text x="968.0" y="156.0" font-size="12" fill="#f59e0b" text-anchor="end" font-weight="600">right fires, she turns left</text>
+<text x="694.0" y="352.0" font-size="13" fill="#1f2328" text-anchor="start" font-weight="normal">Outside the fence she steers for home.</text>
+<text x="694.0" y="372.0" font-size="13" fill="#656d76" text-anchor="start" font-weight="normal">The side toward home decides the emitter.</text>
+</svg>

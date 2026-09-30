@@ -173,3 +173,48 @@ Why time works better than distance:
 - A cow on a move has only arrived once she's inside the new paddock and at least 10 m from its edges.
 
 Code: [`edge/collar.go`](edge/collar.go) (`assess` and `Observe`)
+
+### Threat detection: which side?
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/threats-dark.svg">
+  <img src="docs/threats.svg" alt="Three panels. One: a cow between two fences; the wall ahead-right is at plus 45 degrees and the wall ahead-left at minus 40 degrees. Two: a cow heading into a corner with both walls 9 seconds away; both emitters fire and she turns around. Three: two cows outside the fence; one with home behind her at 164 degrees fires both emitters and turns around, the other with home 49 degrees to her left fires the right emitter and turns left.">
+</picture>
+
+Each edge of the fence gives a wall: the nearest point on it. For each wall the collar measures the signed angle from her heading $\psi$ to that point:
+
+```math
+\theta_w = \mathrm{wrap}_{\pm 180^\circ}\left(\mathrm{atan2}(\Delta x, \Delta y) - \psi\right)
+```
+
+Compass bearings run clockwise from north, so $\theta_w > 0$ means the wall is on her right. It's the same test as the sign of the 2D cross product of her heading and the direction to the wall, done with a single `atan2`.
+
+A wall is a threat when she'd reach it within 10 seconds (see [Fence zones](#fence-zones-time-not-distance)). The threats then choose the emitter. The one on the wall's side fires, and she turns away from it:
+
+| Threats | Emitter | She turns |
+|---|---|---|
+| Only on her right, $\theta > +1^\circ$ | right | left |
+| Only on her left, $\theta < -1^\circ$ | left | right |
+| On both sides, as in a corner | both | around |
+| Dead ahead, $\lvert\theta\rvert \le 1^\circ$ | one at random | away from it |
+
+- **Every wall counts, not just the nearest.** Checking only the nearest wall would turn a cow in a corner away from one fence and straight into the other.
+- **Head-on needs a tie-break.** Square to a fence the angle is about 0°, and its sign is just noise. A coin flip picks a side. After that first turn she's no longer head-on, so the geometry decides from then on.
+- **Turning around is not quite 180°.** Both emitters turn her by 180° ± 17°, so a herd cued in the same corner doesn't walk back out in single file.
+
+**Outside the fence, walls don't matter; home does.** Home is the paddock's centre, or during a move, the nearest point on the lane. The collar fires the emitter that turns her toward it:
+
+```math
+\text{emitter} =
+\begin{cases}
+\text{both, turn around} & \text{if } \lvert\theta_{\text{home}}\rvert > 150^\circ \\
+\text{left, turn right} & \text{if } \theta_{\text{home}} > +1^\circ \\
+\text{right, turn left} & \text{if } \theta_{\text{home}} < -1^\circ \\
+\text{none} & \text{already heading home}
+\end{cases}
+```
+
+How far each cue turns her, and what happens if she ignores it, comes next.
+
+Code: [`edge/collar.go`](edge/collar.go) (`assess` and `sideToward`)
+
