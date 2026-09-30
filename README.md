@@ -515,3 +515,55 @@ That fallback caught a real problem on the first deploy. The push Lambda's Kines
 
 Code: [`lambdas/ws`](lambdas/ws/main.go), [`lambdas/push`](lambdas/push/main.go), [`infra/ws.tf`](infra/ws.tf) and [`ui/src/useCows.ts`](ui/src/useCows.ts)
 
+## The UI
+
+| Drawing a lane | A herd on the move |
+|---|---|
+| <img src="docs/ui-draw.jpg" alt="Drawing a lane from Paddock #6 to Paddock #5 on the satellite map, with a hint bar explaining how to finish it."> | <img src="docs/ui-move.jpg" alt="Eight cows walking the lane toward Paddock #5, one with a cue ripple, under a banner reading Moving 8 cows from Paddock #6 to Paddock #5 with a Turn back button."> |
+
+React and TypeScript, with MapLibre GL drawing Amazon Location's satellite imagery. Everything on the map is live: cows, cues, moves and fence versions.
+
+**Drawing on the map.** Terra Draw handles all three drawing jobs: a paddock polygon (it won't accept an edge that crosses another), a lane polyline, and editing a boundary (drag corners, drag a midpoint to add a corner, right-click to remove one). While you draw, the map checks the shape against every other paddock with Turf's polygon intersection, and names any overlap bigger than 1 m² before you save.
+
+The API works out each paddock's area with the shoelace formula, on the same flat projection the collars use:
+
+```math
+A = \frac{1}{2} \left| \sum_i \left( x_i\, y_{i+1} - x_{i+1}\, y_i \right) \right|
+```
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/ui-motion-dark.svg">
+  <img src="docs/ui-motion.svg" alt="Left: two compass dials for a heading that goes from 350 to 10 degrees. Blending the numbers spins the cow 340 degrees the wrong way through south; the shortest arc turns her 20 degrees through north. Right: cue ripples for sound, vibration and pulse, pulsing every 1000, 600 and 350 milliseconds.">
+</picture>
+
+**Smooth movement.** Positions arrive once a second, but cows glide. Each update animates every cow from where she's drawn right now to her new position over one second. Position is a straight blend. Heading takes the shortest way round, because blending the numbers from 350° to 10° would spin her 340° the wrong way:
+
+```math
+\Delta = \left( (b - a + 540) \bmod 360 \right) - 180 \qquad h(t) = a + \Delta\, t, \quad t \in [0, 1]
+```
+
+Starting each animation from the pose on screen, rather than from the last reported one, means an update that lands early or late never makes a cow jump.
+
+**Cows, rings and emitters.** All cows are one GeoJSON source, drawn in three layers:
+
+- A circle layer for the state ring, coloured by state (see the legend in [What it does](#what-it-does-in-60-seconds)).
+- A symbol layer for the cow icon, rotated to her heading and aligned to the map, so she still faces the right way when the map is rotated.
+- A second symbol layer for the emitter dots. Each dot is offset 9 px to one side and 20 px toward her head, in the icon's own frame, and rotated with her, so it stays behind the correct ear.
+
+**Cue ripples.** A ring grows and fades on every cued cow, faster for a harder cue. With phase $\phi \in [0, 1)$, its radius is $r_0 (1 + 1.5\,\phi)$ and its opacity $1 - \phi$, with a period of 1000, 600 or 350 ms for sound, vibration or pulse. Each frame only changes the ripple layer's paint properties, not the data, and the animation loop only runs while some cow is being cued.
+
+**Sound.** The cue sound plays when any cow's cue steps up, once per update rather than once per cow, at 40%, 70% or full volume for sound, vibration or pulse. The farm ambience uses the Web Audio API:
+
+- A looping cowbell whose volume follows zoom (closer is louder), herd size, and whether the herd is walking.
+- A moo every 25–40 seconds from a random cow. It's panned left or right by where she is on screen, quieter when she's off screen, and played at 0.85–1.12× speed so no two sound quite the same.
+
+**Always telling you what's happening.** The map also shows:
+
+- the live badge (pushed or polling)
+- the move banner with **Turn back**
+- collar tiles with a live dot and a *syncing* tag
+- the paddock's fence version with its "x/y updated" count
+- a toast for every save
+
+Code: [`ui/src/map`](ui/src/map) (`CowsLayer`, `useSmoothCows`, `DrawPaddock`, `DrawPath`, `EditPaddock` and `overlap`), [`ui/src/useCueSound.ts`](ui/src/useCueSound.ts) and [`ui/src/useFarmSounds.ts`](ui/src/useFarmSounds.ts)
+
