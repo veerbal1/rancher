@@ -135,6 +135,41 @@ t = \mathrm{clamp}\left(\frac{(P - A) \cdot d}{\lVert d \rVert^2},\ 0,\ 1\right)
 
 $t$ is how far along the edge the nearest point lies. Clamping it to $[0, 1]$ keeps that point on the fence: past either end, the nearest point is the corner. The distance to the fence is the smallest over all edges.
 
-Together these give each collar its zone: **outside** if the ray test says so, **warning** within 10 m of the nearest edge, otherwise **inside**. The nearest point on every edge also becomes a *wall* that the next step checks for threats.
+The ray test tells the collar whether its cow is outside, and the nearest point on every edge becomes a *wall* that the next step checks.
 
 Code: [`edge/fence.go`](edge/fence.go)
+
+### Fence zones: time, not distance
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/zones-dark.svg">
+  <img src="docs/zones.svg" alt="Four cows near a fence, each with an arrow showing where she will be in 10 seconds. A cow 3 m away walking along the fence never reaches it and stays inside. A cow 8 m away walking straight at it reaches it in 8 seconds and is in warning. A cow 8 m away at 60 degrees takes 16 seconds and stays inside. A cow 3 m outside is breached and turns home. Beside it, a state diagram: inside, warning and breached get worse at once and better only after 3 calm seconds, and inside shows as moving during a herd move.">
+</picture>
+
+A collar could warn whenever its cow is within 10 m of the fence. It asks a better question instead: at her current speed and heading, how soon would she reach it?
+
+For each wall $w$ from the step above, $d_w$ is the distance to it and $\theta_w$ is the angle between her heading and the direction to it, so she closes on it at $v\cos\theta_w$:
+
+```math
+\text{state} =
+\begin{cases}
+\text{breached} & \text{if the ray test says she is outside} \\
+\text{warning} & \text{if some wall has } v\cos\theta_w > 0 \text{ and } \frac{d_w}{v\cos\theta_w} \le 10\ \text{s} \\
+\text{inside} & \text{otherwise}
+\end{cases}
+```
+
+Why time works better than distance:
+
+- **Heading matters.** A cow walking at 1 m/s straight at the fence is caught 10 m out. At 60° only half her speed closes the gap, so she's caught at 5 m. Walking along the fence, never.
+- **Grazing along a fence stays quiet.** A distance band would keep cueing a cow that's only grazing near an edge, even though she isn't going anywhere.
+- **Speed matters.** A cow moving faster is flagged further out, when she needs more room to turn.
+
+**States settle before they relax.** A worse state applies at once, and going from inside to warning or breached starts the first cue, a sound. A better state only applies after 3 calm seconds in a row, so a cow right at the 10-second mark doesn't flicker between states. During a herd move, a cow inside the move's fence shows as **moving**.
+
+**Where 10 m still counts:**
+
+- Once a cue starts while she's grazing, it keeps going while she's within 10 m of that wall and hasn't yet turned more than 120° away from it. Otherwise a cow that turned parallel to the fence would stop counting as a threat, and stop being cued, before she had actually moved away.
+- A cow on a move has only arrived once she's inside the new paddock and at least 10 m from its edges.
+
+Code: [`edge/collar.go`](edge/collar.go) (`assess` and `Observe`)

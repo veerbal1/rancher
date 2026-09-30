@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 400" width="1000" height="400" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<defs>
+<marker id="arrow-inside" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2e9e5b"/></marker>
+<marker id="arrow-warning" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c98a00"/></marker>
+<marker id="arrow-breached" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d64545"/></marker>
+<marker id="arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#656d76"/></marker>
+<marker id="arrow-text" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f2328"/></marker>
+</defs>
+<rect x="1" y="1" width="998" height="398" rx="14" fill="#ffffff" stroke="#d0d7de"/>
+<text x="28.0" y="42.0" font-size="16" fill="#1f2328" text-anchor="start" font-weight="600">Is she heading out? Each arrow is where she'll be in 10 seconds</text>
+<line x1="648" y1="30" x2="648" y2="370" stroke="#d0d7de"/>
+<rect x="28" y="112" width="596" height="188" fill="#2e9e5b1c"/>
+<line x1="28" y1="112" x2="624" y2="112" stroke="#2e9e5b" stroke-width="3"/>
+<text x="36.0" y="102.0" font-size="12" fill="#656d76" text-anchor="start" font-weight="normal">outside</text>
+<text x="36.0" y="132.0" font-size="12" fill="#656d76" text-anchor="start" font-weight="normal">paddock</text>
+<line x1="110" y1="142" x2="210.0" y2="142.0" stroke="#656d76" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow-muted)"/>
+<circle cx="110" cy="142" r="8" fill="#2e9e5b" stroke="#ffffff" stroke-width="2"/>
+<text x="110.0" y="262.0" font-size="12.5" fill="#1f2328" text-anchor="middle" font-weight="600">3 m away, walking along</text>
+<text x="110.0" y="280.0" font-size="12.5" fill="#2e9e5b" text-anchor="middle" font-weight="600">never reaches it</text>
+<line x1="262" y1="192" x2="262.0" y2="92.0" stroke="#c98a00" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow-warning)"/>
+<circle cx="262.0" cy="112" r="6" fill="#ffffff" stroke="#c98a00" stroke-width="2.5"/>
+<circle cx="262" cy="192" r="8" fill="#c98a00" stroke="#ffffff" stroke-width="2"/>
+<text x="262.0" y="262.0" font-size="12.5" fill="#1f2328" text-anchor="middle" font-weight="600">8 m away, head-on</text>
+<text x="262.0" y="280.0" font-size="12.5" fill="#c98a00" text-anchor="middle" font-weight="600">8 s → warning</text>
+<line x1="402" y1="192" x2="488.6" y2="142.0" stroke="#656d76" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow-muted)"/>
+<circle cx="402" cy="192" r="8" fill="#2e9e5b" stroke="#ffffff" stroke-width="2"/>
+<text x="402.0" y="262.0" font-size="12.5" fill="#1f2328" text-anchor="middle" font-weight="600">8 m away, at 60°</text>
+<text x="402.0" y="280.0" font-size="12.5" fill="#2e9e5b" text-anchor="middle" font-weight="600">16 s → inside</text>
+<line x1="545" y1="82" x2="545.0" y2="137.0" stroke="#d64545" stroke-width="2" marker-end="url(#arrow-breached)"/>
+<text x="557.0" y="134.0" font-size="11.5" fill="#d64545" text-anchor="start" font-weight="600">turn home</text>
+<circle cx="545" cy="82" r="8" fill="#d64545" stroke="#ffffff" stroke-width="2"/>
+<text x="545.0" y="262.0" font-size="12.5" fill="#1f2328" text-anchor="middle" font-weight="600">3 m outside</text>
+<text x="545.0" y="280.0" font-size="12.5" fill="#d64545" text-anchor="middle" font-weight="600">→ breached</text>
+<text x="28.0" y="340.0" font-size="13" fill="#1f2328" text-anchor="start" font-weight="normal">Warning when she'd reach the fence within 10 s at her speed and heading.</text>
+<text x="28.0" y="360.0" font-size="13" fill="#656d76" text-anchor="start" font-weight="normal">Same distance, different heading, different answer. Grazing along the fence stays quiet.</text>
+<text x="676.0" y="42.0" font-size="16" fill="#1f2328" text-anchor="start" font-weight="600">State changes</text>
+<rect x="740" y="88" width="150" height="40" rx="10" fill="#f6f8fa" stroke="#2e9e5b" stroke-width="2"/>
+<circle cx="762" cy="108.0" r="6" fill="#2e9e5b"/>
+<text x="778.0" y="113.0" font-size="14" fill="#1f2328" text-anchor="start" font-weight="600">inside</text>
+<rect x="740" y="168" width="150" height="40" rx="10" fill="#f6f8fa" stroke="#c98a00" stroke-width="2"/>
+<circle cx="762" cy="188.0" r="6" fill="#c98a00"/>
+<text x="778.0" y="193.0" font-size="14" fill="#1f2328" text-anchor="start" font-weight="600">warning</text>
+<rect x="740" y="248" width="150" height="40" rx="10" fill="#f6f8fa" stroke="#d64545" stroke-width="2"/>
+<circle cx="762" cy="268.0" r="6" fill="#d64545"/>
+<text x="778.0" y="273.0" font-size="14" fill="#1f2328" text-anchor="start" font-weight="600">breached</text>
+<line x1="785" y1="132" x2="785" y2="164" stroke="#1f2328" stroke-width="1.8" marker-end="url(#arrow-text)"/>
+<line x1="845" y1="164" x2="845" y2="132" stroke="#656d76" stroke-width="1.8" stroke-dasharray="4 3" marker-end="url(#arrow-muted)"/>
+<line x1="785" y1="212" x2="785" y2="244" stroke="#1f2328" stroke-width="1.8" marker-end="url(#arrow-text)"/>
+<line x1="845" y1="244" x2="845" y2="212" stroke="#656d76" stroke-width="1.8" stroke-dasharray="4 3" marker-end="url(#arrow-muted)"/>
+<text x="776.0" y="150.0" font-size="12" fill="#1f2328" text-anchor="end" font-weight="600">worse:</text>
+<text x="776.0" y="166.0" font-size="12" fill="#1f2328" text-anchor="end" font-weight="normal">at once</text>
+<text x="854.0" y="150.0" font-size="12" fill="#656d76" text-anchor="start" font-weight="600">better:</text>
+<text x="854.0" y="166.0" font-size="12" fill="#656d76" text-anchor="start" font-weight="normal">after 3 calm s</text>
+<rect x="740" y="306" width="150" height="28" rx="8" fill="#f6f8fa" stroke="#2f6fdb" stroke-width="1.5" stroke-dasharray="4 3"/>
+<circle cx="762" cy="320" r="5" fill="#2f6fdb"/>
+<text x="776.0" y="324.5" font-size="13" fill="#1f2328" text-anchor="start" font-weight="600">moving</text>
+<text x="676.0" y="360.0" font-size="13" fill="#656d76" text-anchor="start" font-weight="normal">On a move, inside shows as moving.</text>
+</svg>
