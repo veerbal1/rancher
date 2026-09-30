@@ -36,3 +36,100 @@ A portfolio build modelled on [Halter](https://halterhq.com): simulated collars 
 </p>
 
 > The live demo runs on demand to keep costs at zero. Ask me for a link, or bring up your own copy with `./scripts/up.sh`.
+
+## What it does, in 60 seconds
+
+1. **Draw a paddock.** Click its corners on the satellite map. Its area is worked out for you.
+2. **Collar the herd.** Add collars and assign them to the paddock. Within 10 seconds a cow appears for each collar and starts grazing.
+3. **Watch the fence hold.** When a cow heads for the edge, her collar works out how soon she'll reach it and cues her from the side facing the fence: a sound first, then a vibration, then a mild pulse. She turns away and walks off.
+4. **Move the herd.** Pick another paddock and draw the lane the cows should walk. Each collar guides its cow to the gate, along the lane and into the new paddock.
+5. **Change your mind.** **Turn back** walks the herd home along the same lane. Drag a paddock's corners to reshape it, and the map shows how many collars have the new fence, for example `Fence v3 · 7/9 updated`.
+
+Everything on the map is live: positions arrive about once a second, and the green badge shows they're being pushed over a WebSocket.
+
+| On the map | Means |
+|---|---|
+| 🟢 green ring | grazing inside the fence |
+| 🟡 amber ring | close to the fence |
+| 🔴 red ring | outside the fence |
+| 🔵 blue ring | walking a lane to a new paddock |
+| Expanding ripple | a cue firing: yellow for sound, orange for vibration, red for a pulse |
+| Orange dot behind an ear | which emitter is firing, left or right |
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph edge["Farm edge (EC2)"]
+        direction TB
+        tower["Tower<br/>one per farm"]
+        collars["Collars<br/>decide cues locally"]
+        tower --- collars
+    end
+
+    subgraph ingest["Telemetry"]
+        kinesis[["Kinesis<br/>cow-events<br/>key = farmer_id"]]
+        ingestFn["ingest λ"]
+        positions[("cow-positions<br/>latest per collar")]
+        cowApi["cow-api λ"]
+    end
+
+    subgraph live["Real time"]
+        pushFn["cow-push λ"]
+        conns[("cow-connections<br/>GSI farmer_id")]
+        ws{{"API Gateway<br/>WebSocket"}}
+        wsFn["cow-ws λ"]
+    end
+
+    subgraph farm["Farm management"]
+        http{{"API Gateway<br/>HTTP"}}
+        farmFn["farm-api λ"]
+        rancher[("rancher<br/>single table")]
+    end
+
+    subgraph web["Browser"]
+        ui["React + MapLibre<br/>CloudFront + S3"]
+    end
+
+    collars -- "events every 1 s" --> kinesis
+    kinesis --> ingestFn --> positions --> cowApi
+    kinesis --> pushFn
+    pushFn -- "who is watching?" --> conns
+    pushFn -- "PostToConnection" --> ws
+    ws -- "push" --> ui
+    ui -- "connect / disconnect" --> ws --> wsFn --> conns
+    cowApi -- "first snapshot, fallback polling" --> ui
+    ui -- "paddocks, collars, moves" --> http --> farmFn --> rancher
+    tower -. "GET /world every 10 s, IAM-signed" .-> http
+```
+
+Three loops run through the system.
+
+**1. Telemetry: collar to map in about a second**
+
+Each farm has a tower that runs its collars. Every second the tower batches every collar's latest reading into one `PutRecords` call to Kinesis, using `farmer_id` as the partition key, so all of a farm's events land on one shard in order. Two Lambdas read the stream independently:
+
+- **ingest** writes each reading to `cow-positions`, which keeps only the latest reading per collar.
+- **cow-push** keeps each collar's newest event in the batch, looks up which browsers are watching that farm, and pushes one message per farm over the WebSocket.
+
+**2. Real time: only farms someone is watching**
+
+When the map opens, the browser connects to the WebSocket with its farm id. `cow-ws` stores the connection in `cow-connections`, and `$disconnect` deletes it. Connections that vanish without saying goodbye are removed the first time a push to them returns `410 Gone`. A farm with no viewers costs nothing to push.
+
+The browser loads a snapshot from `cow-api` first, then applies pushes. If pushes stop for 3 seconds it falls back to polling, and it drops any cow it hasn't heard from in 10 seconds.
+
+**3. Control: farmer to collar within 10 seconds**
+
+Paddocks, collars and herd moves live in the `rancher` table. Every 10 seconds each tower reads `/world` from the farm API, signed with its IAM role, and reconciles: new collars appear, a paddock change starts a herd move, and an edited boundary is queued for delivery to each collar over a lossy radio link.
+
+The collars never wait for the cloud. Once a collar has its fence, it decides every cue by itself, so a dropped uplink never lets a cow walk out.
+
+| Part | Built with | Why |
+|---|---|---|
+| Collars and towers | Go simulator on a `t4g.nano` | One process runs every farm; a new binary replaces the instance on deploy |
+| Event stream | Kinesis on-demand, keyed by farm | In-order events per farm, and several independent readers |
+| Latest positions | DynamoDB `farmer_id` + `collar_id` | One query returns a whole farm |
+| Farm data | DynamoDB single table, API Gateway HTTP API | `FARMER#id` with `PROFILE`, `PADDOCK#`, `COLLAR#` and `SHIFT#` items, so a farm is one partition |
+| Live updates | API Gateway WebSocket, connections table with a farmer index | Push instead of every browser polling every second |
+| UI | React, MapLibre, Terra Draw, Amazon Location satellite tiles | Drawing paddocks and lanes directly on the map |
+| Infrastructure | Terraform, `up.sh` / `down.sh` | The whole stack comes up and goes away with one command |
