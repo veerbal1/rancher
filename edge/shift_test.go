@@ -254,9 +254,11 @@ func TestReconcileStartsShiftOnlyWhenPlanned(t *testing.T) {
 		return wp
 	}
 	farm := func(paddockID string, shifts ...WorldShift) WorldFarm {
+		b := paddock("B", squareAt(300, 0, 100))
+		b.FenceVersion = 3
 		return WorldFarm{
 			FarmerID: "F",
-			Paddocks: []WorldPaddock{paddock("A", squareAt(0, 0, 100)), paddock("B", squareAt(300, 0, 100)), paddock("C", squareAt(0, 300, 100))},
+			Paddocks: []WorldPaddock{paddock("A", squareAt(0, 0, 100)), b, paddock("C", squareAt(0, 300, 100))},
 			Collars:  []WorldCollar{{ID: "C1", Number: 1, PaddockID: &paddockID}},
 			Shifts:   shifts,
 		}
@@ -269,6 +271,9 @@ func TestReconcileStartsShiftOnlyWhenPlanned(t *testing.T) {
 
 	if r := tower.Reconcile(farm("B", shiftAB)); r.Shifted != 1 || col.shift == nil || col.PaddockID != "B" {
 		t.Fatalf("planned move: result %+v, shifting %v, paddock %s", r, col.shift != nil, col.PaddockID)
+	}
+	if col.fenceVersion != 3 {
+		t.Errorf("collar mid-move reports fence v%d, want the new paddock's v3", col.fenceVersion)
 	}
 	if r := tower.Reconcile(farm("B", shiftAB)); r != (ReconcileResult{}) {
 		t.Errorf("repeat reconcile mid-shift changed things: %+v", r)
