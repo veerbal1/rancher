@@ -76,7 +76,7 @@ Each farm has a tower that runs its collars. Every second the tower batches ever
 
 **2. Real time: only farms someone is watching**
 
-When the map opens, the browser connects to the WebSocket with its farm id. `cow-ws` stores the connection in `cow-connections`, and `$disconnect` deletes it. Connections that vanish without saying goodbye are removed the first time a push to them returns `410 Gone`. A farm with no viewers costs nothing to push.
+When the map opens, the browser connects to the WebSocket with its farm id. `cow-ws` stores the connection in `cow-connections`, and `$disconnect` deletes it. Connections that vanish without saying goodbye are removed the first time a push to them returns `410 Gone`. A farm with no viewers gets one small lookup per batch and no messages.
 
 The browser loads a snapshot from `cow-api` first, then applies pushes. If pushes stop for 3 seconds it falls back to polling, and it drops any cow it hasn't heard from in 10 seconds.
 
@@ -471,4 +471,47 @@ Each part has a job:
 `TestShiftRunningUntilItsCowsStopMoving` covers four cases: just started with no readings yet, cows still walking, cows arrived before the expiry, and expired even though a reading still says `moving`.
 
 Code: [`lambdas/farm-api/shifts.go`](lambdas/farm-api/shifts.go) (`running`, `movingCollars` and `createShift`) and [`ui/src/useShifts.ts`](ui/src/useShifts.ts) (`useActiveShifts`)
+
+### WebSocket fan-out
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/websocket-dark.svg">
+  <img src="docs/websocket.svg" alt="A sequence diagram. Opening the map: the browser fetches a snapshot from cow-api, connects to the WebSocket API with its farm id, and cow-ws saves the connection with a 2 hour expiry. Every Kinesis batch: cow-push keeps each collar's latest event, looks up the farm's connection ids, and posts one message per open map, which the browser receives as live positions. Cleaning up: a 410 Gone deletes a vanished connection, and closing the tab triggers $disconnect, which deletes it too. If pushes stop for 3 seconds, the browser polls cow-api every second, reconnects after 2 seconds, and drops cows silent for 10 seconds.">
+</picture>
+
+The map used to poll `cow-api` every second from every open browser. Now positions are pushed, and the work no longer grows with the number of people watching.
+
+**Who's watching.** When a map opens, it connects with its farm id. `cow-ws` stores `{connection id, farmer id}` in `cow-connections`, which has an index on `farmer_id`, so the connections for a farm are one query away.
+
+**Every batch.** `cow-push` reads the same Kinesis stream as ingest, independently of it. For each batch it:
+
+1. keeps only each collar's newest event. The stream is partitioned by `farmer_id`, so a farm's events arrive in order and the last one wins.
+2. looks up the farm's connection ids. A farm nobody is watching stops here.
+3. sends one message per open map with `PostToConnection`.
+
+**Why it scales.** With $V$ maps open on a farm of $N$ cows:
+
+| Per second | Polling | Push |
+|---|---|---|
+| Lambda invocations | $V$, one per map | about 1 per batch, shared by every map |
+| DynamoDB reads | $V \cdot N$ items, the whole farm for each map | 1 keys-only index lookup |
+| Messages to browsers | $V$ | $V$ |
+
+For a 100-cow farm with 10 maps open, that goes from 1,000 item reads a second to one lookup. The messages to browsers are the same; everything behind them isn't.
+
+**Three layers of cleanup.** A closed tab sends `$disconnect`, which deletes its row. A tab that vanishes without saying goodbye (a crash, lost signal) is deleted the first time a push to it returns `410 Gone`. And every row expires after 2 hours, API Gateway's maximum connection time, so even a farm that never gets another event doesn't collect dead rows.
+
+**Degrade, don't break.** The browser treats pushes as an optimisation, not a dependency:
+
+- It loads a snapshot from `cow-api` first, so the map is never empty while the socket connects.
+- If no push arrives for 3 seconds, it polls `cow-api` every second until pushes return. The badge turns grey.
+- A closed socket reconnects after 2 seconds, which also covers API Gateway's 10-minute idle timeout and 2-hour limit.
+- Positions from the snapshot and from pushes are merged by timestamp, so an older reading never overwrites a newer one.
+- A cow silent for 10 seconds is dropped from the map.
+
+That fallback caught a real problem on the first deploy. The push Lambda's Kinesis trigger took a minute or two to start, the socket was open but silent, and the old version stopped polling as soon as the socket opened, so the cows froze. The fix was to fall back on silence, not on the socket closing.
+
+**A limit worth knowing.** One message carries a whole farm, and API Gateway caps a message at 128 KB. At about 320 bytes per cow, that's around 400 cows per farm before a message would need splitting.
+
+Code: [`lambdas/ws`](lambdas/ws/main.go), [`lambdas/push`](lambdas/push/main.go), [`infra/ws.tf`](infra/ws.tf) and [`ui/src/useCows.ts`](ui/src/useCows.ts)
 
