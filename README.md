@@ -567,3 +567,73 @@ Starting each animation from the pose on screen, rather than from the last repor
 
 Code: [`ui/src/map`](ui/src/map) (`CowsLayer`, `useSmoothCows`, `DrawPaddock`, `DrawPath`, `EditPaddock` and `overlap`), [`ui/src/useCueSound.ts`](ui/src/useCueSound.ts) and [`ui/src/useFarmSounds.ts`](ui/src/useFarmSounds.ts)
 
+## Run it
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/deploy-dark.svg">
+  <img src="docs/deploy.svg" alt="up.sh runs six steps in about 10 minutes: build the 5 Lambdas and the sim for ARM, terraform apply 52 resources, create or update the map key for the new domain, write the new URLs and key into the UI's env file, seed a demo farm if there are no farms, and build and upload the UI to S3 and CloudFront. down.sh runs terraform destroy and deletes the Lambda log groups, leaving nothing that bills; only the free map key stays.">
+</picture>
+
+**You'll need** an AWS account with the AWS CLI signed in, plus Terraform, Go 1.26, Node 24 and Python 3. Everything runs in `ap-south-1` (Mumbai).
+
+```bash
+./scripts/up.sh
+```
+
+It asks you to confirm Terraform's plan, then prints the site's link when it's done, about 10 minutes later. To take everything down again:
+
+```bash
+./scripts/down.sh
+```
+
+There's nothing to edit in between. Every URL that changes on a fresh `up` (the APIs, the WebSocket and the site's domain) flows from Terraform's outputs into the UI's env file, the sim's service and the map key.
+
+**Developing locally** against a stack that's up:
+
+```bash
+cd ui && npm run dev
+```
+
+`up.sh` has already written the cloud's URLs into `ui/.env.local`, so the local map talks to the same backend. The cows come from the sim on EC2. To run the sim on your own machine instead, stop that instance first, because two sims driving the same farms make cows jump:
+
+```bash
+aws ec2 stop-instances --instance-ids $(terraform -chdir=infra output -raw sim_instance_id)
+```
+
+```bash
+WORLD_URL=$(terraform -chdir=infra output -raw world_url) go run ./edge
+```
+
+**Tests** cover the sim and the farm API:
+
+```bash
+go test ./...
+```
+
+### What it costs
+
+Rough daily costs while the stack is up, from AWS list prices at the time of writing (check the pricing pages; Mumbai is a little dearer than us-east-1):
+
+| Part | Per day |
+|---|---|
+| Kinesis on-demand stream, billed by the hour even when idle | about $0.96 |
+| The sim's `t4g.nano` and its public IP | about $0.22 |
+| DynamoDB, one write per cow per second | about $0.05 per cow |
+| Lambda, API Gateway, S3 and CloudFront | a few cents |
+| **While it's down** | **$0** |
+
+A demo with 10 cows comes to about $2 a day, which is why the stack only runs when someone's looking at it.
+
+**At farm scale the per-cow line takes over.** Writes grow with the number of cows $N$ times how often each reports, $f$:
+
+```math
+\text{writes per day} = N \cdot f \cdot 86{,}400
+```
+
+| 100,000 cows | Every cow every second | One reading per 15 s on average |
+|---|---|---|
+| DynamoDB writes per day | 8.6 billion, about $5,400 | 576 million, about $360 |
+| Data into Kinesis per day | 2.8 TB, about $220 | 185 GB, about $15 |
+
+The reporting rate is the lever. A cow grazing far from any fence doesn't need to report every second; only cows near a fence, or on a move, do. Adaptive reporting is on the [roadmap](#roadmap), along with keeping live positions out of the database altogether.
+
