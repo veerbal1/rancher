@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"testing"
@@ -288,4 +289,94 @@ func TestCowsWalkTheLaneWithFewCues(t *testing.T) {
 	if total*120 > laneSecs {
 		t.Errorf("%d cues over %d cow-seconds in the lane, want at most one per 2 minutes per cow", total, laneSecs)
 	}
+}
+
+func TestTurnBackMidLaneWalksTheHerdHome(t *testing.T) {
+	a, b := squareAt(0, 0, 100), squareAt(300, 200, 100)
+	lane := pathM([2]float64{50, 50}, [2]float64{200, 50}, [2]float64{200, 250}, [2]float64{350, 250})
+
+	ring := func(p Polygon) [][2]float64 {
+		r := make([][2]float64, 0, len(p)+1)
+		for _, pt := range append(p, p[0]) {
+			r = append(r, [2]float64{pt.Lng, pt.Lat})
+		}
+		return r
+	}
+	paddock := func(id string, p Polygon) WorldPaddock {
+		wp := WorldPaddock{ID: id}
+		wp.Polygon.Coordinates = [][][2]float64{ring(p)}
+		return wp
+	}
+	worldShift := func(from, to string, pts []Point, start time.Time) WorldShift {
+		s := WorldShift{ID: from + to, FromPaddockID: from, ToPaddockID: to, StartAt: start, WidthM: 8}
+		s.Path = &struct {
+			Coordinates [][2]float64 `json:"coordinates"`
+		}{}
+		for _, p := range pts {
+			s.Path.Coordinates = append(s.Path.Coordinates, [2]float64{p.Lng, p.Lat})
+		}
+		return s
+	}
+	farm := func(paddockID string, shifts ...WorldShift) WorldFarm {
+		f := WorldFarm{FarmerID: "F", Paddocks: []WorldPaddock{paddock("A", a), paddock("B", b)}, Shifts: shifts}
+		for i := 1; i <= 5; i++ {
+			f.Collars = append(f.Collars, WorldCollar{ID: fmt.Sprintf("C%d", i), Number: i, PaddockID: &paddockID})
+		}
+		return f
+	}
+	reversed := make([]Point, len(lane))
+	for i, p := range lane {
+		reversed[len(lane)-1-i] = p
+	}
+
+	t0 := time.Unix(1_000, 0)
+	tower := NewTower("F")
+	tower.Reconcile(farm("A"))
+	tower.Reconcile(farm("B", worldShift("A", "B", lane, t0)))
+
+	now := t0
+	tick := func() {
+		now = now.Add(time.Second)
+		tower.Tick(now, func(Event) {})
+		for _, col := range tower.order {
+			if col.State() == Breached {
+				t.Fatalf("collar %s breached at %s", col.ID, now.Sub(t0))
+			}
+		}
+	}
+	inLane := func() int {
+		n := 0
+		for _, col := range tower.order {
+			if !a.Contains(col.cow.Lng, col.cow.Lat) && !b.Contains(col.cow.Lng, col.cow.Lat) {
+				n++
+			}
+		}
+		return n
+	}
+	for i := 0; i < 600 && inLane() < 3; i++ {
+		tick()
+	}
+	if inLane() < 3 {
+		t.Fatalf("only %d cows reached the lane before turning back", inLane())
+	}
+
+	if r := tower.Reconcile(farm("A", worldShift("B", "A", reversed, now))); r.Shifted != 5 {
+		t.Fatalf("turn back started %d shifts, want 5 (%+v)", r.Shifted, r)
+	}
+
+	home := func() bool {
+		for _, col := range tower.order {
+			if col.shift != nil || col.PaddockID != "A" || !a.Contains(col.cow.Lng, col.cow.Lat) {
+				return false
+			}
+		}
+		return true
+	}
+	for i := 0; i < 1200 && !home(); i++ {
+		tick()
+	}
+	if !home() {
+		t.Fatalf("herd not home in paddock A %s after turning back", now.Sub(t0))
+	}
+	t.Logf("herd home %s after the move started", now.Sub(t0))
 }

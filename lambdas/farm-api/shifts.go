@@ -22,7 +22,7 @@ const (
 	shiftLeadTime      = 10 * time.Second
 	shiftWalkMS        = 0.8
 	shiftGrace         = 3 * time.Minute
-	maxCollarsPerShift = 99
+	maxCollarsPerShift = 98
 	maxPathPoints      = 100
 	defaultLaneWidthM  = 8.0
 	minLaneWidthM      = 3.0
@@ -133,19 +133,7 @@ func createShift(ctx context.Context, farmerID, body string) (events.APIGatewayV
 
 	writes := []types.TransactWriteItem{{Put: &types.Put{TableName: aws.String(table), Item: item}}}
 	for _, id := range collarIDs {
-		writes = append(writes, types.TransactWriteItem{Update: &types.Update{
-			TableName: aws.String(table),
-			Key: map[string]types.AttributeValue{
-				"PK": &types.AttributeValueMemberS{Value: "FARMER#" + farmerID},
-				"SK": &types.AttributeValueMemberS{Value: "COLLAR#" + id},
-			},
-			UpdateExpression:    aws.String("SET paddock_id = :to"),
-			ConditionExpression: aws.String("paddock_id = :from"),
-			ExpressionAttributeValues: map[string]types.AttributeValue{
-				":from": &types.AttributeValueMemberS{Value: in.FromPaddockID},
-				":to":   &types.AttributeValueMemberS{Value: in.ToPaddockID},
-			},
-		}})
+		writes = append(writes, moveCollar(farmerID, id, in.FromPaddockID, in.ToPaddockID))
 	}
 	_, err = db.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: writes})
 	var cancelled *types.TransactionCanceledException
@@ -156,6 +144,109 @@ func createShift(ctx context.Context, farmerID, body string) (events.APIGatewayV
 		return events.APIGatewayV2HTTPResponse{}, err
 	}
 	return respond(http.StatusCreated, s)
+}
+
+func turnBackShift(ctx context.Context, farmerID, shiftID string) (events.APIGatewayV2HTTPResponse, error) {
+	out, err := db.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName:      aws.String(table),
+		Key:            shiftKey(farmerID, shiftID),
+		ConsistentRead: aws.Bool(true),
+	})
+	if err != nil {
+		return events.APIGatewayV2HTTPResponse{}, err
+	}
+	if out.Item == nil {
+		return respond(http.StatusNotFound, errorBody("shift not found"))
+	}
+	var old Shift
+	if err := attributevalue.UnmarshalMap(out.Item, &old); err != nil {
+		return events.APIGatewayV2HTTPResponse{}, err
+	}
+
+	now := time.Now().UTC()
+	nowStr := now.Format(time.RFC3339)
+	if !old.active(nowStr) {
+		return respond(http.StatusConflict, errorBody("this move has already finished"))
+	}
+
+	var writes []types.TransactWriteItem
+	var back *Shift
+	if nowStr < old.StartAt {
+		writes = append(writes, types.TransactWriteItem{Delete: &types.Delete{TableName: aws.String(table), Key: shiftKey(farmerID, shiftID)}})
+	} else {
+		reversed := make([][]float64, len(old.Path.Coordinates))
+		for i, pt := range old.Path.Coordinates {
+			reversed[len(reversed)-1-i] = pt
+		}
+		walk := time.Duration(pathLengthM(reversed) / shiftWalkMS * float64(time.Second))
+		back = &Shift{
+			ID:            rand.Text(),
+			FarmerID:      farmerID,
+			FromPaddockID: old.ToPaddockID,
+			ToPaddockID:   old.FromPaddockID,
+			CollarIDs:     old.CollarIDs,
+			Path:          LineString{Type: "LineString", Coordinates: reversed},
+			WidthM:        old.WidthM,
+			StartAt:       nowStr,
+			ExpiresAt:     now.Add(walk + shiftGrace).Format(time.RFC3339),
+		}
+		item, err := attributevalue.MarshalMap(shiftItem{PK: "FARMER#" + farmerID, SK: "SHIFT#" + back.ID, Shift: *back})
+		if err != nil {
+			return events.APIGatewayV2HTTPResponse{}, err
+		}
+		writes = append(writes,
+			types.TransactWriteItem{Update: &types.Update{
+				TableName:           aws.String(table),
+				Key:                 shiftKey(farmerID, shiftID),
+				UpdateExpression:    aws.String("SET expires_at = :now"),
+				ConditionExpression: aws.String("expires_at = :expires"),
+				ExpressionAttributeValues: map[string]types.AttributeValue{
+					":now":     &types.AttributeValueMemberS{Value: nowStr},
+					":expires": &types.AttributeValueMemberS{Value: old.ExpiresAt},
+				},
+			}},
+			types.TransactWriteItem{Put: &types.Put{TableName: aws.String(table), Item: item}},
+		)
+	}
+	for _, id := range old.CollarIDs {
+		writes = append(writes, moveCollar(farmerID, id, old.ToPaddockID, old.FromPaddockID))
+	}
+
+	_, err = db.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: writes})
+	var cancelled *types.TransactionCanceledException
+	if errors.As(err, &cancelled) {
+		return respond(http.StatusConflict, errorBody("the herd changed while turning back, refresh and try again"))
+	}
+	if err != nil {
+		return events.APIGatewayV2HTTPResponse{}, err
+	}
+	if back == nil {
+		return respond(http.StatusOK, map[string]any{"cancelled": shiftID})
+	}
+	return respond(http.StatusCreated, map[string]any{"ended": shiftID, "shift": back})
+}
+
+func shiftKey(farmerID, shiftID string) map[string]types.AttributeValue {
+	return map[string]types.AttributeValue{
+		"PK": &types.AttributeValueMemberS{Value: "FARMER#" + farmerID},
+		"SK": &types.AttributeValueMemberS{Value: "SHIFT#" + shiftID},
+	}
+}
+
+func moveCollar(farmerID, collarID, from, to string) types.TransactWriteItem {
+	return types.TransactWriteItem{Update: &types.Update{
+		TableName: aws.String(table),
+		Key: map[string]types.AttributeValue{
+			"PK": &types.AttributeValueMemberS{Value: "FARMER#" + farmerID},
+			"SK": &types.AttributeValueMemberS{Value: "COLLAR#" + collarID},
+		},
+		UpdateExpression:    aws.String("SET paddock_id = :to"),
+		ConditionExpression: aws.String("paddock_id = :from"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":from": &types.AttributeValueMemberS{Value: from},
+			":to":   &types.AttributeValueMemberS{Value: to},
+		},
+	}}
 }
 
 func listShifts(ctx context.Context, farmerID string) (events.APIGatewayV2HTTPResponse, error) {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { LngLat } from './map/geo'
+import type { Cow } from './useCows'
 
 export type Shift = {
   id: string
@@ -14,6 +15,7 @@ export type Shift = {
 }
 
 const FARM_API_URL = import.meta.env.VITE_FARM_API_URL
+const STARTUP_GRACE_MS = 30_000
 
 export function useShifts(farmerId: string | null) {
   const [shifts, setShifts] = useState<Shift[]>([])
@@ -53,5 +55,33 @@ export function useShifts(farmerId: string | null) {
     return body
   }
 
-  return { shifts, error, startShift }
+  const turnBack = async (shift: Shift): Promise<Shift | null> => {
+    if (!farmerId) throw new Error('no farmer selected')
+    const res = await fetch(
+      `${FARM_API_URL}/farmers/${encodeURIComponent(farmerId)}/shifts/${encodeURIComponent(shift.id)}/turn-back`,
+      { method: 'POST' },
+    )
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`)
+    const back: Shift | null = body.shift ?? null
+    setShifts((prev) => [...prev.filter((s) => s.id !== shift.id), ...(back ? [back] : [])])
+    return back
+  }
+
+  return { shifts, error, startShift, turnBack }
+}
+
+export function useActiveShifts(shifts: Shift[], cows: Cow[]) {
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  const moving = new Set(cows.filter((c) => c.state === 'moving').map((c) => c.collar_id))
+  return shifts.filter((s) => {
+    const settling = now < Date.parse(s.start_at) + STARTUP_GRACE_MS
+    return now < Date.parse(s.expires_at) && (settling || s.collar_ids.some((id) => moving.has(id)))
+  })
 }

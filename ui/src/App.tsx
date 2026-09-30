@@ -17,7 +17,7 @@ import { useCows } from './useCows'
 import { useFarmers, type Location } from './useFarmers'
 import { usePaddocks } from './usePaddocks'
 import { useCollars, type Collar } from './useCollars'
-import { useShifts } from './useShifts'
+import { useActiveShifts, useShifts, type Shift } from './useShifts'
 import { useCueSound } from './useCueSound'
 import { useFarmSounds } from './useFarmSounds'
 import { MenuPanel } from './components/MenuPanel'
@@ -27,6 +27,7 @@ import { PaddocksSection } from './components/PaddocksSection'
 import { PaddockDetail } from './components/PaddockDetail'
 import { CollarsSection } from './components/CollarsSection'
 import { SoundToggle } from './components/SoundToggle'
+import { ShiftBanner } from './components/ShiftBanner'
 
 const INITIAL_BOUNDS: [LngLat, LngLat] = [toLngLat(-40, -40), toLngLat(140, 140)]
 
@@ -40,7 +41,8 @@ function App() {
   const { paddocks, error: paddocksError, createPaddock, renamePaddock, deletePaddock } = usePaddocks(selectedFarmerId)
   const [selectedPaddockId, setSelectedPaddockId] = useState<string | null>(null)
   const { collars, error: collarsError, buyCollars, assignCollars, deleteCollar, moveLocally, forgetPaddock } = useCollars(selectedFarmerId)
-  const { shifts, error: shiftsError, startShift } = useShifts(selectedFarmerId)
+  const { shifts, error: shiftsError, startShift, turnBack } = useShifts(selectedFarmerId)
+  const activeShifts = useActiveShifts(shifts, cows)
   const [soundOn, setSoundOn] = useState(false)
   const [pathDraft, setPathDraft] = useState<{ fromId: string; toId: string } | null>(null)
   useCueSound(cows, soundOn)
@@ -133,6 +135,18 @@ function App() {
     }
   }
 
+  const turnBackShift = async (shift: Shift) => {
+    try {
+      const back = await turnBack(shift)
+      moveLocally(shift.collar_ids, shift.from_paddock_id)
+      toast.success(back ? `Turning back to ${paddockName(shift.from_paddock_id)}` : 'Move cancelled', {
+        description: back ? 'The cows walk back along the same lane' : 'The cows had not left yet',
+      })
+    } catch (err) {
+      toast.error('Could not turn back', { description: err instanceof Error ? err.message : String(err) })
+    }
+  }
+
   const addCollars = async (count: number) => {
     const added = await buyCollars(count)
     const range = added.length === 1 ? added[0].name : `${added[0].name}–#${added[added.length - 1].number}`
@@ -165,7 +179,7 @@ function App() {
         <PaddocksLayer paddocks={paddocks} selectedId={selectedPaddockId} />
         {draftRing && <DraftPaddockLayer ring={draftRing} />}
         <CowsLayer cows={cows} />
-        <ShiftLayer shifts={shifts} cows={cows} />
+        <ShiftLayer shifts={activeShifts} />
         <PaddockLabelsLayer selectedId={selectedPaddockId} />
         <DrawPaddock active={drawingPaddock} onFinish={handlePaddockDrawn} />
         <DrawPath active={!!pathDraft} onFinish={handlePathDrawn} />
@@ -173,6 +187,10 @@ function App() {
 
       <img src="/logo-96.png" alt="Rancher" className="fixed top-4 left-4 z-10 size-12 rounded-2xl shadow-lg" />
       <SoundToggle on={soundOn} onChange={setSoundOn} />
+
+      {!pathDraft && activeShifts[0] && (
+        <ShiftBanner shift={activeShifts[0]} paddocks={paddocks} onTurnBack={turnBackShift} />
+      )}
 
       {pathDraft && (
         <div className="fixed top-4 right-[26rem] left-20 z-10 flex items-center gap-3 rounded-2xl border border-white/60 bg-white/85 px-4 py-2.5 text-sm shadow-lg backdrop-blur-xl">
