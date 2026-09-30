@@ -63,6 +63,8 @@ Everything on the map is live: positions arrive about once a second, and the gre
   <img src="docs/architecture.png" alt="Collars and towers send events every second to Kinesis. An ingest Lambda stores the latest position per collar in DynamoDB, served by cow-api. A cow-push Lambda looks up who is watching in a connections table and pushes positions over an API Gateway WebSocket to the browser. The browser edits the farm through an HTTP API and farm-api Lambda backed by a single DynamoDB table, which towers read every 10 seconds.">
 </picture>
 
+<sub>Arrows point the way data flows. farm-api both reads and writes the farm table.</sub>
+
 Three loops run through the system.
 
 **1. Telemetry: collar to map in about a second**

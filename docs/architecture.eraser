@@ -29,16 +29,18 @@ Browser [icon: aws-cloudfront, color: gray, label: "Browser via CloudFront"] {
   UI [icon: react, label: "Live farm map"]
 }
 
-Collars > Tower
+Collars > Tower: readings
 Tower > Kinesis: events every 1 s
 Kinesis > Ingest > Positions > CowApi
 Kinesis > Push
-Push > Connections: who is watching?
+Push < Connections: viewer connections
 Push > WebSocket: PostToConnection
-WsFn > Connections
-WebSocket > WsFn: connect
-WebSocket <> UI: live push
+WebSocket > WsFn: $connect / $disconnect
+WsFn > Connections: save / delete
+WebSocket > UI: live positions
+WebSocket < UI: open socket
 CowApi > UI: first snapshot
-Tower > HttpApi: GET /world every 10 s
-HttpApi > FarmApi > Rancher
-HttpApi < UI: paddocks, collars, moves
+HttpApi < UI: farm edits
+HttpApi > FarmApi
+FarmApi <> Rancher
+Tower < HttpApi: farm plan every 10 s
