@@ -95,3 +95,46 @@ The collars never wait for the cloud. Once a collar has its fence, it decides ev
 | Live updates | API Gateway WebSocket, connections table with a farmer index | Push instead of every browser polling every second |
 | UI | React, MapLibre, Terra Draw, Amazon Location satellite tiles | Drawing paddocks and lanes directly on the map |
 | Infrastructure | Terraform, `up.sh` / `down.sh` | The whole stack comes up and goes away with one command |
+
+## How the collar thinks
+
+Every collar runs the same loop once a second, entirely on the collar: where am I, how close is the fence, am I heading into it, and which way should I turn? It's all plain 2D geometry, with no GIS library and no call to the cloud.
+
+### Geometry basics
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/geometry-dark.svg">
+  <img src="docs/geometry.svg" alt="Three panels. One: a globe where a line of latitude at angle phi has radius R cos phi, so a degree of longitude shrinks with cos phi. Two: an L-shaped paddock with rays cast east from three cows; the cow whose ray crosses one edge is inside, the cows whose rays cross zero or two edges are outside. Three: a cow projected onto a fence edge at t = 0.44 with a right angle, and a second cow past the end of the edge whose projection is clamped to the corner.">
+</picture>
+
+**1. Degrees to metres.** GPS gives degrees, but fences are measured in metres. Around a single cow the ground is flat enough to use a local projection centred on her:
+
+```math
+x = (\lambda - \lambda_0) \cdot 111{,}320 \cdot \cos\varphi_0 \qquad y = (\varphi - \varphi_0) \cdot 111{,}320
+```
+
+A degree of latitude is about 111.32 km anywhere (40,075 km ÷ 360). Lines of longitude converge towards the poles, so a degree of longitude is that times cos φ: about 88 km at the demo farm, 37.7° S.
+
+How wrong is a flat earth? Against the real ellipsoid at 37.7° S, the scale is off by 0.3% north–south and 0.1% east–west, and cos φ changes by only 0.006% across a 500 m paddock. On the 10 m warning distance that's 3 cm, far below GPS noise of 3–5 m. So one multiplication per axis replaces the haversine formula.
+
+**2. Inside or outside: ray casting.** Cast a ray due east from the cow and count the fence edges it crosses. An odd count means she's inside. An edge from $a$ to $b$ crosses the ray when it straddles her latitude and the crossing is east of her:
+
+```math
+(a_y > y) \ne (b_y > y) \quad \text{and} \quad x < a_x + (y - a_y)\,\frac{b_x - a_x}{b_y - a_y}
+```
+
+- It's O(n) for an n-cornered paddock and works for concave shapes like an L.
+- The half-open test `>` counts a corner that sits exactly on the ray once, not twice.
+- It runs directly on degrees: stretching one axis never changes which side of an edge a point is on, so no projection is needed.
+
+**3. Distance to the fence: projecting onto a segment.** In metres, with the cow at $P$ and an edge from $A$ to $B$, where $d = B - A$:
+
+```math
+t = \operatorname{clamp}\!\left(\frac{(P - A) \cdot d}{\lVert d \rVert^2},\ 0,\ 1\right) \qquad Q = A + t\,d \qquad \text{distance} = \lVert P - Q \rVert
+```
+
+$t$ is how far along the edge the nearest point lies. Clamping it to $[0, 1]$ keeps that point on the fence: past either end, the nearest point is the corner. The distance to the fence is the smallest over all edges.
+
+Together these give each collar its zone: **outside** if the ray test says so, **warning** within 10 m of the nearest edge, otherwise **inside**. The nearest point on every edge also becomes a *wall* that the next step checks for threats.
+
+Code: [`edge/fence.go`](edge/fence.go)
