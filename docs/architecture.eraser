@@ -1,0 +1,44 @@
+direction right
+
+Farm edge [icon: aws-ec2, color: green] {
+  Collars [icon: radio, label: "Collars"]
+  Tower [icon: radio-tower, label: "Tower per farm"]
+}
+
+Telemetry [color: orange] {
+  Kinesis [icon: aws-kinesis, label: "Kinesis"]
+  Ingest [icon: aws-lambda, label: "ingest"]
+  Positions [icon: aws-dynamodb, label: "cow-positions"]
+  CowApi [icon: aws-lambda, label: "cow-api"]
+}
+
+Real time [color: purple] {
+  Push [icon: aws-lambda, label: "cow-push"]
+  Connections [icon: aws-dynamodb, label: "cow-connections"]
+  WsFn [icon: aws-lambda, label: "cow-ws"]
+  WebSocket [icon: aws-api-gateway, label: "WebSocket API"]
+}
+
+Farm management [color: blue] {
+  HttpApi [icon: aws-api-gateway, label: "HTTP API"]
+  FarmApi [icon: aws-lambda, label: "farm-api"]
+  Rancher [icon: aws-dynamodb, label: "rancher"]
+}
+
+Browser [icon: aws-cloudfront, color: gray, label: "Browser via CloudFront"] {
+  UI [icon: react, label: "Live farm map"]
+}
+
+Collars > Tower
+Tower > Kinesis: events every 1 s
+Kinesis > Ingest > Positions > CowApi
+Kinesis > Push
+Push > Connections: who is watching?
+Push > WebSocket: PostToConnection
+WsFn > Connections
+WebSocket > WsFn: connect
+WebSocket <> UI: live push
+CowApi > UI: first snapshot
+Tower > HttpApi: GET /world every 10 s
+HttpApi > FarmApi > Rancher
+HttpApi < UI: paddocks, collars, moves

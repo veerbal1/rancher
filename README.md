@@ -58,50 +58,10 @@ Everything on the map is live: positions arrive about once a second, and the gre
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    subgraph edge["Farm edge (EC2)"]
-        direction TB
-        tower["Tower<br/>one per farm"]
-        collars["Collars<br/>decide cues locally"]
-        tower --- collars
-    end
-
-    subgraph ingest["Telemetry"]
-        kinesis[["Kinesis<br/>cow-events<br/>key = farmer_id"]]
-        ingestFn["ingest λ"]
-        positions[("cow-positions<br/>latest per collar")]
-        cowApi["cow-api λ"]
-    end
-
-    subgraph live["Real time"]
-        pushFn["cow-push λ"]
-        conns[("cow-connections<br/>GSI farmer_id")]
-        ws{{"API Gateway<br/>WebSocket"}}
-        wsFn["cow-ws λ"]
-    end
-
-    subgraph farm["Farm management"]
-        http{{"API Gateway<br/>HTTP"}}
-        farmFn["farm-api λ"]
-        rancher[("rancher<br/>single table")]
-    end
-
-    subgraph web["Browser"]
-        ui["React + MapLibre<br/>CloudFront + S3"]
-    end
-
-    collars -- "events every 1 s" --> kinesis
-    kinesis --> ingestFn --> positions --> cowApi
-    kinesis --> pushFn
-    pushFn -- "who is watching?" --> conns
-    pushFn -- "PostToConnection" --> ws
-    ws -- "push" --> ui
-    ui -- "connect / disconnect" --> ws --> wsFn --> conns
-    cowApi -- "first snapshot, fallback polling" --> ui
-    ui -- "paddocks, collars, moves" --> http --> farmFn --> rancher
-    tower -. "GET /world every 10 s, IAM-signed" .-> http
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-dark.png">
+  <img src="docs/architecture.png" alt="Collars and towers send events every second to Kinesis. An ingest Lambda stores the latest position per collar in DynamoDB, served by cow-api. A cow-push Lambda looks up who is watching in a connections table and pushes positions over an API Gateway WebSocket to the browser. The browser edits the farm through an HTTP API and farm-api Lambda backed by a single DynamoDB table, which towers read every 10 seconds.">
+</picture>
 
 Three loops run through the system.
 
