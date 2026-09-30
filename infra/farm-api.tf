@@ -62,7 +62,7 @@ resource "aws_apigatewayv2_api" "farm" {
   protocol_type = "HTTP"
 
   cors_configuration {
-    allow_origins = ["http://localhost:5173"]
+    allow_origins = ["http://localhost:5173", "https://${aws_cloudfront_distribution.web.domain_name}"]
     allow_methods = ["GET", "POST", "PATCH", "DELETE"]
     allow_headers = ["content-type"]
   }

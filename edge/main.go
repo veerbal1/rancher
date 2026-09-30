@@ -39,6 +39,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("aws config: %v", err)
 	}
+	if worldURL == "" {
+		log.Fatal("WORLD_URL is required: WORLD_URL=$(terraform -chdir=infra output -raw world_url) go run ./edge")
+	}
 
 	updates := make(chan World, 1)
 	go watchWorld(ctx, cfg, updates)

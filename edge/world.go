@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -13,8 +14,9 @@ import (
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 )
 
+var worldURL = os.Getenv("WORLD_URL")
+
 const (
-	worldURL         = "https://3wht70bg87.execute-api.ap-south-1.amazonaws.com/world"
 	worldRefresh     = 10 * time.Second
 	emptyPayloadHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 )
