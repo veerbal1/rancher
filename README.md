@@ -253,3 +253,46 @@ What she does right after a cue comes next.
 
 Code: [`edge/collar.go`](edge/collar.go) (`Observe`, `Step` and `cueTurnRad`)
 
+### Startle and commit
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/startle-dark.svg">
+  <img src="docs/startle.svg" alt="Real simulator traces of 14 cows starting 8 m from a fence and heading at it, over 40 seconds. Before: the cue stops once a cow is no longer closing on the fence, so the cows drift along it and are cued again and again; 49 s to get 15 m clear, 1.4 m closest approach, 89 cues per cow-hour. Now: cues continue until each cow is heading away, then she walks off briskly for 8 s; the traces fan out away from the fence; 11 s to get 15 m clear, 5.4 m closest approach, 52 cues per cow-hour.">
+</picture>
+
+A cue only works if she actually leaves. Two rules make sure she does.
+
+**Keep cueing until she's heading away.** One 40° turn from head-on leaves her walking at a shallow angle to the fence. Her closing speed drops, the 10-second test stops flagging her, and the cue stops. So she drifts along the fence and gets cued again and again, as on the left. Now, while she's grazing, a cue keeps going until she has turned more than 120° away from that wall, for as long as she's within 10 m of it.
+
+**Then commit to walking away.** After every fence cue she's startled for 8 seconds: she walks 1.5× faster and holds her line.
+
+```math
+v = 1.5\,v_0 \qquad \lvert \Delta\psi_{\text{random}} \rvert \le 0.08\ \text{rad per second, instead of } 0.15
+```
+
+Her random heading change each second is uniform on $[-w, w]$, with variance $w^2/3$, so after $n$ seconds her heading has drifted by
+
+```math
+\sigma_n = w\sqrt{n/3}
+```
+
+Over the 8-second walk-off that's 7.5° instead of 14°, so she holds her escape heading about twice as straight, and covers 12 m instead of 8 m.
+
+**Measured.** Each row runs 100 cows starting 8 m from a fence and heading within 30° of straight at it, plus 50 cows grazing for an hour in a 1 ha paddock:
+
+| | Time to get 15 m clear | Closest to the fence | Cues per cow-hour, grazing |
+|---|---|---|---|
+| Neither rule | 49.2 s | 1.4 m | 89 |
+| Startle only | 41.7 s | 1.1 m | 87 |
+| Keep cueing only | 16.0 s | 4.8 m | 49 |
+| **Both (now)** | **11.2 s** | **5.4 m** | **52** |
+
+- **Keep cueing does most of the work:** 3× faster to get clear, 3.4 m more margin, and 45% fewer cues. Fewer cues is better for the cow.
+- **Startle alone doesn't help.** Walking briskly along the fence isn't the same as leaving it. Paired with keep cueing, it takes another 30% off the time.
+- **The trade-off:** startle adds about three cues per cow-hour (49 → 52) in exchange for clearing the fence 5 seconds sooner.
+- **Only fence cues startle.** Guidance cues during a herd move don't, because a brisk walk-off there made cows overshoot the gate.
+
+The "now" row is also a regression test: `TestCuedCowTurnsAndWalksAway` fails if the average goes over 20 s or any cow comes within 2 m of the fence.
+
+Code: [`edge/cow.go`](edge/cow.go) (`Startle` and `Step`) and [`edge/collar.go`](edge/collar.go) (`assess`)
+
