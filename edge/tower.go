@@ -104,6 +104,7 @@ func (t *Tower) Tick(now time.Time, emit func(Event)) {
 			Heading:   col.cow.Heading * 180 / math.Pi,
 			State:     col.State(),
 			Level:     col.Level(),
+			Side:      col.Side(),
 		})
 	}
 }

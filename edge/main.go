@@ -27,6 +27,7 @@ type Event struct {
 	Heading   float64   `json:"heading"`
 	State     State     `json:"state"`
 	Level     Cue       `json:"level"`
+	Side      Side      `json:"side"`
 }
 
 func main() {

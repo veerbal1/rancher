@@ -2,13 +2,11 @@ package main
 
 import "math"
 
-const (
-	defaultLaneWidthM = 8.0
-	moveWarnM         = 2.0
-)
+const defaultLaneWidthM = 8.0
 
 type Fence interface {
-	Evaluate(lng, lat, warnM float64) Zone
+	Contains(lng, lat float64) bool
+	Walls(lng, lat float64) []Point
 	Home(lng, lat float64) (float64, float64)
 }
 
@@ -108,29 +106,46 @@ type MoveFence struct {
 	Lane Lane
 }
 
-func (m MoveFence) Evaluate(lng, lat, _ float64) Zone {
-	laneD := m.Lane.DistanceM(lng, lat)
-	inLane := laneD <= m.Lane.HalfWidthM
+func (m MoveFence) Contains(lng, lat float64) bool {
+	return m.From.Contains(lng, lat) || m.To.Contains(lng, lat) || m.Lane.DistanceM(lng, lat) <= m.Lane.HalfWidthM
+}
 
-	var in Polygon
+func (m MoveFence) Walls(lng, lat float64) []Point {
 	switch {
 	case m.From.Contains(lng, lat):
-		in = m.From
+		return m.outsideLane(m.From.Walls(lng, lat))
 	case m.To.Contains(lng, lat):
-		in = m.To
-	case inLane:
-		if laneD > m.Lane.HalfWidthM-moveWarnM {
-			return ZoneWarning
-		}
-		return ZoneInside
-	default:
-		return ZoneOutside
+		return m.outsideLane(m.To.Walls(lng, lat))
+	case m.Lane.DistanceM(lng, lat) <= m.Lane.HalfWidthM:
+		return m.Lane.sideWalls(lng, lat)
 	}
+	return nil
+}
 
-	if !inLane && in.DistanceToEdge(lng, lat) <= moveWarnM {
-		return ZoneWarning
+func (m MoveFence) outsideLane(walls []Point) []Point {
+	kept := walls[:0]
+	for _, w := range walls {
+		if m.Lane.DistanceM(w.Lng, w.Lat) > m.Lane.HalfWidthM {
+			kept = append(kept, w)
+		}
 	}
-	return ZoneInside
+	return kept
+}
+
+func (l Lane) sideWalls(lng, lat float64) []Point {
+	_, alongM, p := l.nearest(lng, lat)
+	a, b := l.PointAt(math.Max(0, alongM-0.5)), l.PointAt(alongM+0.5)
+	k := metresPerDeg * math.Cos(p.Lat*math.Pi/180)
+	dx, dy := (b.Lng-a.Lng)*k, (b.Lat-a.Lat)*metresPerDeg
+	n := math.Hypot(dx, dy)
+	if n == 0 {
+		return nil
+	}
+	ox, oy := -dy/n*l.HalfWidthM, dx/n*l.HalfWidthM
+	return []Point{
+		{Lng: p.Lng + ox/k, Lat: p.Lat + oy/metresPerDeg},
+		{Lng: p.Lng - ox/k, Lat: p.Lat - oy/metresPerDeg},
+	}
 }
 
 func (m MoveFence) Home(lng, lat float64) (float64, float64) {

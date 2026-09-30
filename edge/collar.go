@@ -53,10 +53,43 @@ func (c Cue) String() string {
 	}
 }
 
+type Side int
+
+const (
+	SideNone Side = iota
+	SideLeft
+	SideRight
+	SideBoth
+)
+
+func (s Side) String() string {
+	switch s {
+	case SideLeft:
+		return "left"
+	case SideRight:
+		return "right"
+	case SideBoth:
+		return "both"
+	default:
+		return "none"
+	}
+}
+
 const (
 	escalateAfter = 8
 	calmAfter     = 3
+	threatSecs    = 10.0
+	awayRad       = 120 * math.Pi / 180
+	headOnRad     = math.Pi / 180
+	behindRad     = 150 * math.Pi / 180
 )
+
+var cueTurnRad = [...]float64{
+	CueNone:      0,
+	CueAudio:     40 * math.Pi / 180,
+	CueVibration: 60 * math.Pi / 180,
+	CuePulse:     90 * math.Pi / 180,
+}
 
 type Collar struct {
 	ID        string
@@ -72,8 +105,12 @@ type Collar struct {
 	calm   int
 	gaveUp bool
 
-	shift   *Shift
-	guiding bool
+	side Side
+
+	shift     *Shift
+	guiding   bool
+	guideSide Side
+	guideTurn float64
 }
 
 func NewCollar(id string, number int, paddockID string, fence Polygon, c *Cow, warnM float64) *Collar {
@@ -106,8 +143,73 @@ func (col *Collar) Level() Cue {
 	return col.level
 }
 
+func (col *Collar) Side() Side {
+	switch {
+	case col.level != CueNone && col.side != SideNone:
+		return col.side
+	case col.guiding:
+		return col.guideSide
+	}
+	return SideNone
+}
+
+func (col *Collar) assess() (State, Side) {
+	lng, lat := col.cow.Lng, col.cow.Lat
+	if !col.fence.Contains(lng, lat) {
+		homeLng, homeLat := col.fence.Home(lng, lat)
+		return Breached, sideToward(col.cow.BearingDiff(homeLng, homeLat))
+	}
+
+	left, right, ahead := false, false, false
+	for _, w := range col.fence.Walls(lng, lat) {
+		rel := col.cow.BearingDiff(w.Lng, w.Lat)
+		distM := metresBetween(lng, lat, w)
+		closing := col.cow.Speed * math.Cos(rel)
+		approaching := closing > 0 && distM/closing <= threatSecs
+		unfinished := col.shift == nil && col.level != CueNone && distM <= col.warnM && math.Abs(rel) < awayRad
+		if !approaching && !unfinished {
+			continue
+		}
+		switch {
+		case rel > headOnRad:
+			right = true
+		case rel < -headOnRad:
+			left = true
+		default:
+			ahead = true
+		}
+	}
+
+	switch {
+	case left && right:
+		return Warning, SideBoth
+	case right:
+		return Warning, SideRight
+	case left:
+		return Warning, SideLeft
+	case ahead && col.cow.rng.Float64() < 0.5:
+		return Warning, SideLeft
+	case ahead:
+		return Warning, SideRight
+	}
+	return Inside, SideNone
+}
+
+func sideToward(diff float64) Side {
+	switch {
+	case math.Abs(diff) > behindRad:
+		return SideBoth
+	case diff < -headOnRad:
+		return SideRight
+	case diff > headOnRad:
+		return SideLeft
+	}
+	return SideNone
+}
+
 func (col *Collar) Observe() Cue {
-	raw := zoneToState(col.fence.Evaluate(col.cow.Lng, col.cow.Lat, col.warnM))
+	raw, side := col.assess()
+	col.side = side
 
 	switch {
 	case raw > col.state:
@@ -153,22 +255,28 @@ func (col *Collar) Observe() Cue {
 func (col *Collar) Step(now time.Time, dt float64) {
 	col.cow.Step(dt)
 	col.followShift(now)
-	if col.Observe() == CuePulse {
-		col.cow.TurnAround()
+	col.Observe()
+	switch {
+	case col.level != CueNone:
+		if col.side != SideNone {
+			col.cow.TurnFrom(col.side, cueTurnRad[col.level])
+			col.cow.Startle()
+		}
+	case col.guiding:
+		col.cow.TurnFrom(col.guideSide, col.guideTurn)
 	}
-	col.respond()
 }
 
 func (col *Collar) followShift(now time.Time) {
 	s := col.shift
 	if s == nil || now.Before(s.Start) {
-		col.guiding = false
+		col.guiding, col.guideSide = false, SideNone
 		return
 	}
 
 	lng, lat := col.cow.Lng, col.cow.Lat
 	if s.To.Evaluate(lng, lat, col.warnM) == ZoneInside {
-		col.fence, col.shift, col.guiding = s.To, nil, false
+		col.fence, col.shift, col.guiding, col.guideSide = s.To, nil, false, SideNone
 		col.cow.Wander = grazeWander
 		return
 	}
@@ -184,40 +292,17 @@ func (col *Collar) followShift(now time.Time) {
 }
 
 func (col *Collar) guide(lng, lat, driftM float64) {
-	off := math.Abs(col.cow.BearingDiff(lng, lat))
+	diff := col.cow.BearingDiff(lng, lat)
+	off := math.Abs(diff)
 	switch {
 	case !col.guiding && (off > cueStartRad || driftM > driftStartM):
 		col.guiding = true
 	case col.guiding && off < cueStopRad && driftM < driftStopM:
 		col.guiding = false
 	}
-	if col.guiding {
-		col.cow.SteerTo(lng, lat, guideRate)
-	}
-}
-
-func (col *Collar) respond() {
-	lng, lat := col.fence.Home(col.cow.Lng, col.cow.Lat)
-	switch col.level {
-	case CueAudio:
-		col.cow.SteerTo(lng, lat, 0.3)
-	case CueVibration:
-		col.cow.SteerTo(lng, lat, 0.6)
-	case CuePulse:
-		col.cow.SteerTo(lng, lat, 0.9)
-	}
-}
-
-func zoneToState(z Zone) State {
-	switch z {
-	case ZoneWarning:
-		return Warning
-	case ZoneOutside:
-		return Breached
-	default:
-		return Inside
-	}
+	col.guideSide, col.guideTurn = sideToward(diff), guideRate*off
 }
 
 func (s State) MarshalText() ([]byte, error) { return []byte(s.String()), nil }
 func (c Cue) MarshalText() ([]byte, error)   { return []byte(c.String()), nil }
+func (s Side) MarshalText() ([]byte, error)  { return []byte(s.String()), nil }

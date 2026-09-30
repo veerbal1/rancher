@@ -37,26 +37,42 @@ func TestGateIsWherePathLeavesOldPaddock(t *testing.T) {
 	}
 }
 
-func TestMoveFenceZones(t *testing.T) {
+func TestMoveFenceContainsAndWalls(t *testing.T) {
 	fence := NewShift("B", squareAt(0, 0, 100), squareAt(300, 0, 100), nil, 8, time.Time{}).Fence
 
-	tests := []struct {
+	contains := []struct {
 		name string
 		x, y float64
-		want Zone
+		want bool
 	}{
-		{"middle of old paddock", 50, 50, ZoneInside},
-		{"old paddock edge away from the gate", 50, 1, ZoneWarning},
-		{"old paddock edge at the gate", 99, 50, ZoneInside},
-		{"lane centre", 200, 50, ZoneInside},
-		{"lane edge", 200, 53, ZoneWarning},
-		{"beside the lane", 200, 60, ZoneOutside},
-		{"new paddock", 350, 50, ZoneInside},
+		{"old paddock", 50, 50, true},
+		{"lane centre", 200, 50, true},
+		{"lane edge", 200, 53.5, true},
+		{"beside the lane", 200, 60, false},
+		{"new paddock", 350, 50, true},
 	}
-	for _, tt := range tests {
+	for _, tt := range contains {
 		p := at(tt.x, tt.y)
-		if got := fence.Evaluate(p.Lng, p.Lat, warnM); got != tt.want {
-			t.Errorf("%s: zone %d, want %d", tt.name, got, tt.want)
+		if got := fence.Contains(p.Lng, p.Lat); got != tt.want {
+			t.Errorf("%s: contains %v, want %v", tt.name, got, tt.want)
+		}
+	}
+
+	inLane := at(200, 51)
+	walls := fence.Walls(inLane.Lng, inLane.Lat)
+	if len(walls) != 2 {
+		t.Fatalf("in the lane: %d walls, want the 2 lane sides", len(walls))
+	}
+	for _, want := range []Point{at(200, 54), at(200, 46)} {
+		if d := math.Min(metresApart(walls[0], want), metresApart(walls[1], want)); d > 0.2 {
+			t.Errorf("no lane wall near %v (closest %.1f m)", want, d)
+		}
+	}
+
+	nearGate := at(95, 50)
+	for _, w := range fence.Walls(nearGate.Lng, nearGate.Lat) {
+		if d := metresApart(w, at(100, 50)); d < 4 {
+			t.Errorf("the gate opening at the old paddock edge was treated as a wall (%.1f m from the gate)", d)
 		}
 	}
 }

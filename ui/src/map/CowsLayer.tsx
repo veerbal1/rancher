@@ -6,6 +6,28 @@ import type { Cow } from '../useCows'
 import { useSmoothCows } from './useSmoothCows'
 
 const COW_IMAGE = 'cow'
+const EMITTER_IMAGE = 'emitter'
+const EMITTER_OFFSETS: Record<string, [number, number][]> = {
+  left: [[-9, -20]],
+  right: [[9, -20]],
+  both: [[-9, -20], [9, -20]],
+}
+const iconSize: ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], 14, 0.25, 17, 0.5, 20, 1]
+
+function emitterImage() {
+  const size = 24
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  ctx.beginPath()
+  ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2)
+  ctx.fillStyle = '#f59e0b'
+  ctx.fill()
+  ctx.lineWidth = 2
+  ctx.strokeStyle = '#ffffff'
+  ctx.stroke()
+  return ctx.getImageData(0, 0, size, size)
+}
 const CUE_LAYER = 'cow-cues'
 const CUE_PERIOD_MS: Record<string, number> = { audio: 1000, vibration: 600, pulse: 350 }
 
@@ -73,6 +95,7 @@ export function CowsLayer({ cows }: { cows: Cow[] }) {
     map.loadImage('/cow.png').then(({ data }) => {
       if (cancelled) return
       if (!map.hasImage(COW_IMAGE)) map.addImage(COW_IMAGE, data, { pixelRatio: 2 })
+      if (!map.hasImage(EMITTER_IMAGE)) map.addImage(EMITTER_IMAGE, emitterImage(), { pixelRatio: 2 })
       setImageReady(true)
     })
     return () => {
@@ -92,39 +115,72 @@ export function CowsLayer({ cows }: { cows: Cow[] }) {
     [shown],
   )
 
+  const emitters = useMemo<FeatureCollection<Point>>(
+    () => ({
+      type: 'FeatureCollection',
+      features: shown.flatMap((c) =>
+        (EMITTER_OFFSETS[c.side ?? 'none'] ?? []).map((offset) => ({
+          type: 'Feature' as const,
+          properties: { heading: c.heading, offset },
+          geometry: { type: 'Point' as const, coordinates: [c.lng, c.lat] },
+        })),
+      ),
+    }),
+    [shown],
+  )
+
   return (
-    <Source id="cows" type="geojson" data={points}>
-      <Layer
-        id="cow-rings"
-        type="circle"
-        paint={{
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 14, 7, 17, 14, 20, 28],
-          'circle-color': stateColor,
-          'circle-opacity': 0.35,
-          'circle-stroke-width': 2,
-          'circle-stroke-color': stateColor,
-        }}
-      />
-      <Layer
-        id={CUE_LAYER}
-        type="circle"
-        filter={['!=', ['get', 'level'], 'none']}
-        paint={{ 'circle-opacity': 0, 'circle-stroke-width': 3, 'circle-stroke-color': cueColor }}
-      />
-      {imageReady && (
+    <>
+      <Source id="cows" type="geojson" data={points}>
         <Layer
-          id="cow-icons"
-          type="symbol"
-          layout={{
-            'icon-image': COW_IMAGE,
-            'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.25, 17, 0.5, 20, 1],
-            'icon-rotate': ['get', 'heading'],
-            'icon-rotation-alignment': 'map',
-            'icon-allow-overlap': true,
-            'icon-ignore-placement': true,
+          id="cow-rings"
+          type="circle"
+          paint={{
+            'circle-radius': ['interpolate', ['linear'], ['zoom'], 14, 7, 17, 14, 20, 28],
+            'circle-color': stateColor,
+            'circle-opacity': 0.35,
+            'circle-stroke-width': 2,
+            'circle-stroke-color': stateColor,
           }}
         />
+        <Layer
+          id={CUE_LAYER}
+          type="circle"
+          filter={['!=', ['get', 'level'], 'none']}
+          paint={{ 'circle-opacity': 0, 'circle-stroke-width': 3, 'circle-stroke-color': cueColor }}
+        />
+        {imageReady && (
+          <Layer
+            id="cow-icons"
+            type="symbol"
+            layout={{
+              'icon-image': COW_IMAGE,
+              'icon-size': iconSize,
+              'icon-rotate': ['get', 'heading'],
+              'icon-rotation-alignment': 'map',
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': true,
+            }}
+          />
+        )}
+      </Source>
+      {imageReady && (
+        <Source id="cow-emitters" type="geojson" data={emitters}>
+          <Layer
+            id="cow-emitter-dots"
+            type="symbol"
+            layout={{
+              'icon-image': EMITTER_IMAGE,
+              'icon-size': iconSize,
+              'icon-offset': ['array', 'number', 2, ['get', 'offset']],
+              'icon-rotate': ['get', 'heading'],
+              'icon-rotation-alignment': 'map',
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': true,
+            }}
+          />
+        </Source>
       )}
-    </Source>
+    </>
   )
 }

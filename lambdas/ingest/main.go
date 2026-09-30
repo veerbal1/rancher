@@ -25,6 +25,7 @@ type Event struct {
 	Heading   float64 `json:"heading"    dynamodbav:"heading"`
 	State     string  `json:"state"      dynamodbav:"state"`
 	Level     string  `json:"level"      dynamodbav:"level"`
+	Side      string  `json:"side"       dynamodbav:"side"`
 }
 
 var (

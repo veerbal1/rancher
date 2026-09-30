@@ -7,8 +7,10 @@ import (
 
 const (
 	metresPerDeg = 111_320.0
-	grazeWander  = 0.4
+	grazeWander  = 0.15
 	laneWander   = 0.08
+	commitTicks  = 8
+	commitSpeed  = 1.5
 )
 
 type Cow struct {
@@ -17,6 +19,7 @@ type Cow struct {
 	Heading float64
 	Speed   float64
 	Wander  float64
+	commit  int
 	rng     *rand.Rand
 }
 
@@ -32,15 +35,29 @@ func NewCow(lng, lat float64, rng *rand.Rand) *Cow {
 }
 
 func (c *Cow) Step(dt float64) {
-	c.Heading = wrap(c.Heading + (c.rng.Float64()*2-1)*c.Wander)
+	wander, speed := c.Wander, c.Speed
+	if c.commit > 0 {
+		c.commit--
+		wander, speed = math.Min(wander, laneWander), speed*commitSpeed
+	}
+	c.Heading = wrap(c.Heading + (c.rng.Float64()*2-1)*wander)
 
-	d := c.Speed * dt
+	d := speed * dt
 	c.Lat += d * math.Cos(c.Heading) / metresPerDeg
 	c.Lng += d * math.Sin(c.Heading) / (metresPerDeg * math.Cos(c.Lat*math.Pi/180))
 }
 
-func (c *Cow) TurnAround() {
-	c.Heading = wrap(c.Heading + math.Pi + (c.rng.Float64()*2-1)*0.5)
+func (c *Cow) Startle() { c.commit = commitTicks }
+
+func (c *Cow) TurnFrom(side Side, rad float64) {
+	switch side {
+	case SideLeft:
+		c.Heading = wrap(c.Heading + rad)
+	case SideRight:
+		c.Heading = wrap(c.Heading - rad)
+	case SideBoth:
+		c.Heading = wrap(c.Heading + math.Pi + (c.rng.Float64()*2-1)*0.3)
+	}
 }
 
 func (c *Cow) SteerTo(lng, lat, rate float64) {

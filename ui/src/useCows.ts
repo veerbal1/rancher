@@ -11,6 +11,7 @@ export type Cow = {
   heading: number
   state: string
   level: string
+  side?: 'none' | 'left' | 'right' | 'both'
 }
 
 const API_URL = import.meta.env.VITE_API_URL

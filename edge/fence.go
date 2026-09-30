@@ -51,6 +51,31 @@ func (p Polygon) DistanceToEdge(lng, lat float64) float64 {
 	return best
 }
 
+func (p Polygon) Walls(lng, lat float64) []Point {
+	walls := make([]Point, 0, len(p))
+	for i := range p {
+		walls = append(walls, nearestOnSegment(p[i], p[(i+1)%len(p)], lng, lat))
+	}
+	return walls
+}
+
+func nearestOnSegment(a, b Point, lng, lat float64) Point {
+	k := metresPerDeg * math.Cos(lat*math.Pi/180)
+	ax, ay := (a.Lng-lng)*k, (a.Lat-lat)*metresPerDeg
+	bx, by := (b.Lng-lng)*k, (b.Lat-lat)*metresPerDeg
+	dx, dy := bx-ax, by-ay
+	t := 0.0
+	if l := dx*dx + dy*dy; l > 0 {
+		t = math.Max(0, math.Min(1, -(ax*dx+ay*dy)/l))
+	}
+	return Point{Lng: a.Lng + t*(b.Lng-a.Lng), Lat: a.Lat + t*(b.Lat-a.Lat)}
+}
+
+func metresBetween(lng, lat float64, p Point) float64 {
+	k := metresPerDeg * math.Cos(lat*math.Pi/180)
+	return math.Hypot((p.Lng-lng)*k, (p.Lat-lat)*metresPerDeg)
+}
+
 func (p Polygon) Center() (float64, float64) {
 	var lng, lat float64
 	for _, pt := range p {
