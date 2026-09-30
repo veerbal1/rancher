@@ -28,6 +28,7 @@ import { PaddocksSection } from './components/PaddocksSection'
 import { PaddockDetail } from './components/PaddockDetail'
 import { CollarsSection } from './components/CollarsSection'
 import { SoundToggle } from './components/SoundToggle'
+import { LiveBadge } from './components/LiveBadge'
 import { ShiftBanner } from './components/ShiftBanner'
 
 const INITIAL_BOUNDS: [LngLat, LngLat] = [toLngLat(-40, -40), toLngLat(140, 140)]
@@ -36,12 +37,12 @@ function App() {
   const { main: map } = useMap()
   const { farmers, error: farmersError, createFarmer } = useFarmers()
   const [selectedFarmerId, setSelectedFarmerId] = useState<string | null>(null)
-  const { cows, error: cowsError } = useCows(selectedFarmerId)
+  const { cows, error: cowsError, live } = useCows(selectedFarmerId)
   const [drawingPaddock, setDrawingPaddock] = useState(false)
   const [draftRing, setDraftRing] = useState<LngLat[] | null>(null)
   const { paddocks, error: paddocksError, createPaddock, updatePaddock, deletePaddock } = usePaddocks(selectedFarmerId)
   const [selectedPaddockId, setSelectedPaddockId] = useState<string | null>(null)
-  const { collars, error: collarsError, buyCollars, assignCollars, deleteCollar, moveLocally, forgetPaddock } = useCollars(selectedFarmerId)
+  const { collars, error: collarsError, buyCollars, assignCollars, deleteCollars, moveLocally, forgetPaddock } = useCollars(selectedFarmerId)
   const { shifts, error: shiftsError, startShift, turnBack } = useShifts(selectedFarmerId)
   const activeShifts = useActiveShifts(shifts, cows)
   const [soundOn, setSoundOn] = useState(false)
@@ -198,9 +199,16 @@ function App() {
     toast.success(`Added ${added.length} collar${added.length === 1 ? '' : 's'}`, { description: range })
   }
 
-  const removeCollar = async (collar: Collar) => {
-    await deleteCollar(collar.id)
-    toast.success(`${collar.name} deleted`)
+  const collarsLabel = (list: Collar[]) => (list.length === 1 ? list[0].name : `${list.length} collars`)
+
+  const removeCollars = async (list: Collar[]) => {
+    await deleteCollars(list.map((c) => c.id))
+    toast.success(`${collarsLabel(list)} deleted`)
+  }
+
+  const unassignCollars = async (list: Collar[]) => {
+    await assignCollars(list.map((c) => c.id), null)
+    toast.success(`${collarsLabel(list)} unassigned`)
   }
 
   const handleMapClick = (e: MapLayerMouseEvent) => {
@@ -233,6 +241,7 @@ function App() {
 
       <img src="/logo-96.png" alt="Rancher" className="fixed top-4 left-4 z-10 size-12 rounded-2xl shadow-lg" />
       <SoundToggle on={soundOn} onChange={setSoundOn} />
+      {selectedFarmerId && <LiveBadge live={live} />}
 
       {!pathDraft && !reshape && activeShifts[0] && (
         <ShiftBanner shift={activeShifts[0]} paddocks={paddocks} onTurnBack={turnBackShift} />
@@ -305,7 +314,7 @@ function App() {
             onMoveHerd={startDrawingPath}
           />
         )}
-        <CollarsSection collars={collars} cows={cows} paddocks={paddocks} canAdd={!!selectedFarmer} onAdd={addCollars} onDelete={removeCollar} />
+        <CollarsSection collars={collars} cows={cows} paddocks={paddocks} canAdd={!!selectedFarmer} onAdd={addCollars} onDelete={removeCollars} onUnassign={unassignCollars} />
       </MenuPanel>
 
       <Toaster theme="light" position="top-center" />

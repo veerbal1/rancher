@@ -81,6 +81,8 @@ func handle(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.API
 		return listShifts(ctx, req.PathParameters["id"])
 	case "POST /farmers/{id}/shifts/{shiftId}/turn-back":
 		return turnBackShift(ctx, req.PathParameters["id"], req.PathParameters["shiftId"])
+	case "DELETE /farmers/{id}/collars":
+		return deleteCollars(ctx, req.PathParameters["id"], req.Body)
 	case "DELETE /farmers/{id}/collars/{collarId}":
 		return deleteCollar(ctx, req.PathParameters["id"], req.PathParameters["collarId"])
 	default:

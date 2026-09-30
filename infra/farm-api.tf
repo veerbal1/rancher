@@ -86,6 +86,7 @@ resource "aws_apigatewayv2_route" "farm_api" {
     "POST /farmers/{id}/collars",
     "GET /farmers/{id}/collars",
     "PATCH /farmers/{id}/collars",
+    "DELETE /farmers/{id}/collars",
     "DELETE /farmers/{id}/collars/{collarId}",
     "POST /farmers/{id}/shifts",
     "GET /farmers/{id}/shifts",

@@ -201,6 +201,40 @@ func deleteCollar(ctx context.Context, farmerID, collarID string) (events.APIGat
 	return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusNoContent}, nil
 }
 
+func deleteCollars(ctx context.Context, farmerID, body string) (events.APIGatewayV2HTTPResponse, error) {
+	var in struct {
+		CollarIDs []string `json:"collar_ids"`
+	}
+	if err := json.Unmarshal([]byte(body), &in); err != nil {
+		return respond(http.StatusBadRequest, errorBody("invalid JSON"))
+	}
+	ids := unique(in.CollarIDs)
+	if len(ids) == 0 || len(ids) > maxCollarsPerAssign {
+		return respond(http.StatusBadRequest, errorBody(fmt.Sprintf("collar_ids must have 1-%d ids", maxCollarsPerAssign)))
+	}
+
+	deletes := make([]types.TransactWriteItem, 0, len(ids))
+	for _, id := range ids {
+		deletes = append(deletes, types.TransactWriteItem{Delete: &types.Delete{
+			TableName: aws.String(table),
+			Key: map[string]types.AttributeValue{
+				"PK": &types.AttributeValueMemberS{Value: "FARMER#" + farmerID},
+				"SK": &types.AttributeValueMemberS{Value: "COLLAR#" + id},
+			},
+			ConditionExpression: aws.String("attribute_exists(PK)"),
+		}})
+	}
+	_, err := db.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: deletes})
+	var cancelled *types.TransactionCanceledException
+	if errors.As(err, &cancelled) {
+		return respond(http.StatusNotFound, errorBody("one or more collars not found"))
+	}
+	if err != nil {
+		return events.APIGatewayV2HTTPResponse{}, err
+	}
+	return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusNoContent}, nil
+}
+
 func unassignCollarsFromPaddock(ctx context.Context, farmerID, paddockID string) error {
 	pages := dynamodb.NewQueryPaginator(db, &dynamodb.QueryInput{
 		TableName:              aws.String(table),

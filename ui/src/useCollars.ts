@@ -64,17 +64,22 @@ export function useCollars(farmerId: string | null) {
     }
   }
 
-  const deleteCollar = async (id: string) => {
+  const deleteCollars = async (collarIds: string[]) => {
     if (!farmerId) throw new Error('no farmer selected')
-    const res = await fetch(
-      `${FARM_API_URL}/farmers/${encodeURIComponent(farmerId)}/collars/${encodeURIComponent(id)}`,
-      { method: 'DELETE' },
-    )
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      throw new Error(body.error ?? `HTTP ${res.status}`)
+    for (let i = 0; i < collarIds.length; i += MAX_PER_ASSIGN) {
+      const chunk = collarIds.slice(i, i + MAX_PER_ASSIGN)
+      const res = await fetch(`${FARM_API_URL}/farmers/${encodeURIComponent(farmerId)}/collars`, {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ collar_ids: chunk }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? `HTTP ${res.status}`)
+      }
+      const ids = new Set(chunk)
+      setCollars((prev) => prev.filter((c) => !ids.has(c.id)))
     }
-    setCollars((prev) => prev.filter((c) => c.id !== id))
   }
 
   const moveLocally = (collarIds: string[], paddockId: string) => {
@@ -86,5 +91,5 @@ export function useCollars(farmerId: string | null) {
     setCollars((prev) => prev.map((c) => (c.paddock_id === paddockId ? { ...c, paddock_id: null } : c)))
   }
 
-  return { collars, error, buyCollars, assignCollars, deleteCollar, moveLocally, forgetPaddock }
+  return { collars, error, buyCollars, assignCollars, deleteCollars, moveLocally, forgetPaddock }
 }
