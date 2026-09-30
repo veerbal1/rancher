@@ -64,7 +64,7 @@ func handle(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.API
 	case "GET /farmers/{id}/paddocks":
 		return listPaddocks(ctx, req.PathParameters["id"])
 	case "PATCH /farmers/{id}/paddocks/{paddockId}":
-		return renamePaddock(ctx, req.PathParameters["id"], req.PathParameters["paddockId"], req.Body)
+		return updatePaddock(ctx, req.PathParameters["id"], req.PathParameters["paddockId"], req.Body)
 	case "DELETE /farmers/{id}/paddocks/{paddockId}":
 		return deletePaddock(ctx, req.PathParameters["id"], req.PathParameters["paddockId"])
 	case "POST /farmers/{id}/collars":

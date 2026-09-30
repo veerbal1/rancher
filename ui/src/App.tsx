@@ -9,6 +9,7 @@ import { ShiftLayer } from './map/ShiftLayer'
 import { DrawPaddock } from './map/DrawPaddock'
 import { DraftPaddockLayer } from './map/DraftPaddockLayer'
 import { DrawPath } from './map/DrawPath'
+import { EditPaddock } from './map/EditPaddock'
 import { PaddocksLayer } from './map/PaddocksLayer'
 import { PaddockLabelsLayer } from './map/PaddockLabelsLayer'
 import { toLngLat, type LngLat } from './map/geo'
@@ -38,19 +39,27 @@ function App() {
   const { cows, error: cowsError } = useCows(selectedFarmerId)
   const [drawingPaddock, setDrawingPaddock] = useState(false)
   const [draftRing, setDraftRing] = useState<LngLat[] | null>(null)
-  const { paddocks, error: paddocksError, createPaddock, renamePaddock, deletePaddock } = usePaddocks(selectedFarmerId)
+  const { paddocks, error: paddocksError, createPaddock, updatePaddock, deletePaddock } = usePaddocks(selectedFarmerId)
   const [selectedPaddockId, setSelectedPaddockId] = useState<string | null>(null)
   const { collars, error: collarsError, buyCollars, assignCollars, deleteCollar, moveLocally, forgetPaddock } = useCollars(selectedFarmerId)
   const { shifts, error: shiftsError, startShift, turnBack } = useShifts(selectedFarmerId)
   const activeShifts = useActiveShifts(shifts, cows)
   const [soundOn, setSoundOn] = useState(false)
   const [pathDraft, setPathDraft] = useState<{ fromId: string; toId: string } | null>(null)
+  const [reshape, setReshape] = useState<{ id: string; ring: LngLat[] } | null>(null)
+  const [savingShape, setSavingShape] = useState(false)
   useCueSound(cows, soundOn)
   useFarmSounds(map, cows, soundOn)
 
   const selectedFarmer = farmers.find((f) => f.id === selectedFarmerId)
   const selectedPaddock = paddocks.find((p) => p.id === selectedPaddockId)
   const overlaps = useMemo(() => (draftRing ? findOverlaps(draftRing, paddocks) : []), [draftRing, paddocks])
+  const reshapeOverlaps = useMemo(
+    () => (reshape ? findOverlaps(reshape.ring, paddocks.filter((p) => p.id !== reshape.id)) : []),
+    [reshape, paddocks],
+  )
+  const reshaping = paddocks.find((p) => p.id === reshape?.id)
+  const busyOnMap = drawingPaddock || !!pathDraft || !!reshape
 
   const error = cowsError || farmersError || paddocksError || collarsError || shiftsError
 
@@ -94,8 +103,44 @@ function App() {
 
   const renameSelectedPaddock = async (name: string) => {
     if (!selectedPaddock) return
-    const paddock = await renamePaddock(selectedPaddock.id, name)
+    const paddock = await updatePaddock(selectedPaddock.id, { name })
     toast.success(`Renamed to ${paddock.name}`)
+  }
+
+  const startReshape = () => {
+    if (!selectedPaddock) return
+    setDrawingPaddock(false)
+    setDraftRing(null)
+    setPathDraft(null)
+    const ring = selectedPaddock.polygon.coordinates[0]
+    setReshape({ id: selectedPaddock.id, ring })
+    const lngs = ring.map(([lng]) => lng)
+    const lats = ring.map(([, lat]) => lat)
+    map?.fitBounds(
+      [
+        [Math.min(...lngs), Math.min(...lats)],
+        [Math.max(...lngs), Math.max(...lats)],
+      ],
+      { padding: { top: 110, bottom: 60, left: 100, right: 440 }, duration: 800 },
+    )
+  }
+
+  const handleReshape = useCallback((ring: LngLat[]) => {
+    setReshape((prev) => (prev ? { ...prev, ring } : prev))
+  }, [])
+
+  const saveReshape = async () => {
+    if (!reshape) return
+    setSavingShape(true)
+    try {
+      const paddock = await updatePaddock(reshape.id, { ring: reshape.ring })
+      setReshape(null)
+      toast.success(`${paddock.name} boundary saved`, { description: `${paddock.area_ha} ha` })
+    } catch (err) {
+      toast.error('Could not save the boundary', { description: err instanceof Error ? err.message : String(err) })
+    } finally {
+      setSavingShape(false)
+    }
   }
 
   const deleteSelectedPaddock = async () => {
@@ -173,23 +218,43 @@ function App() {
 
       <SatelliteMap
         initialBounds={INITIAL_BOUNDS}
-        interactiveLayerIds={drawingPaddock || pathDraft ? [] : ['paddocks-fill']}
-        onClick={drawingPaddock || pathDraft ? undefined : handleMapClick}
+        interactiveLayerIds={busyOnMap ? [] : ['paddocks-fill']}
+        onClick={busyOnMap ? undefined : handleMapClick}
       >
-        <PaddocksLayer paddocks={paddocks} selectedId={selectedPaddockId} />
+        <PaddocksLayer paddocks={reshape ? paddocks.filter((p) => p.id !== reshape.id) : paddocks} selectedId={selectedPaddockId} />
         {draftRing && <DraftPaddockLayer ring={draftRing} />}
         <CowsLayer cows={cows} />
         <ShiftLayer shifts={activeShifts} />
         <PaddockLabelsLayer selectedId={selectedPaddockId} />
         <DrawPaddock active={drawingPaddock} onFinish={handlePaddockDrawn} />
         <DrawPath active={!!pathDraft} onFinish={handlePathDrawn} />
+        {reshaping && <EditPaddock key={reshaping.id} initialRing={reshaping.polygon.coordinates[0]} onChange={handleReshape} />}
       </SatelliteMap>
 
       <img src="/logo-96.png" alt="Rancher" className="fixed top-4 left-4 z-10 size-12 rounded-2xl shadow-lg" />
       <SoundToggle on={soundOn} onChange={setSoundOn} />
 
-      {!pathDraft && activeShifts[0] && (
+      {!pathDraft && !reshape && activeShifts[0] && (
         <ShiftBanner shift={activeShifts[0]} paddocks={paddocks} onTurnBack={turnBackShift} />
+      )}
+
+      {reshape && reshaping && (
+        <div className="fixed top-4 right-[26rem] left-20 z-10 flex items-center gap-3 rounded-2xl border border-white/60 bg-white/85 px-4 py-2.5 text-sm shadow-lg backdrop-blur-xl">
+          <div className="min-w-0 flex-1">
+            <p>
+              Reshaping {reshaping.name}: drag corners, drag a midpoint to add a corner, right-click a corner to remove it.
+            </p>
+            {reshapeOverlaps.length > 0 && (
+              <p className="text-amber-800">Overlaps {reshapeOverlaps.map((o) => o.name).join(', ')}.</p>
+            )}
+          </div>
+          <Button variant="outline" size="sm" className="cursor-pointer" disabled={savingShape} onClick={() => setReshape(null)}>
+            Cancel
+          </Button>
+          <Button size="sm" className="cursor-pointer" disabled={savingShape} onClick={saveReshape}>
+            {savingShape ? 'Saving…' : reshapeOverlaps.length > 0 ? 'Save anyway' : 'Save'}
+          </Button>
+        </div>
       )}
 
       {pathDraft && (
@@ -233,6 +298,7 @@ function App() {
             collars={collars}
             paddocks={paddocks}
             onRename={renameSelectedPaddock}
+            onEditBoundary={startReshape}
             onDelete={deleteSelectedPaddock}
             onAssignCollars={saveCollarAssignment}
             onMoveHerd={startDrawingPath}

@@ -100,14 +100,17 @@ func fetchWorld(ctx context.Context, cfg aws.Config) (World, error) {
 }
 
 func watchWorld(ctx context.Context, cfg aws.Config, updates chan<- World) {
-	last := ""
+	last, lastSummary := "", ""
 	for {
 		w, err := fetchWorld(ctx, cfg)
 		if err != nil && ctx.Err() == nil {
 			log.Printf("world: %v", err)
-		} else if s := w.Summary(); err == nil && s != last {
-			log.Print(s)
-			last = s
+		} else if raw, _ := json.Marshal(w); err == nil && string(raw) != last {
+			last = string(raw)
+			if s := w.Summary(); s != lastSummary {
+				log.Print(s)
+				lastSummary = s
+			}
 			select {
 			case updates <- w:
 			case <-ctx.Done():

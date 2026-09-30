@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Check, Pencil, Trash2, X } from 'lucide-react'
+import { Check, Pencil, Spline, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -23,12 +23,13 @@ type Props = {
   collars: Collar[]
   paddocks: Paddock[]
   onRename: (name: string) => Promise<void>
+  onEditBoundary: () => void
   onDelete: () => Promise<void>
   onAssignCollars: (add: string[], remove: string[]) => Promise<void>
   onMoveHerd: (toPaddockId: string) => void
 }
 
-export function PaddockDetail({ paddock, collars, paddocks, onRename, onDelete, onAssignCollars, onMoveHerd }: Props) {
+export function PaddockDetail({ paddock, collars, paddocks, onRename, onEditBoundary, onDelete, onAssignCollars, onMoveHerd }: Props) {
   const collarCount = collars.filter((c) => c.paddock_id === paddock.id).length
 
   const [editing, setEditing] = useState(false)
@@ -136,34 +137,40 @@ export function PaddockDetail({ paddock, collars, paddocks, onRename, onDelete, 
             <p className="text-xs text-muted-foreground">{paddock.area_ha} ha</p>
           </div>
 
-          <AlertDialog open={open} onOpenChange={changeOpen}>
-            <AlertDialogTrigger render={<Button variant="destructive" size="sm" className="cursor-pointer" />}>
-              <Trash2 />
-              Delete
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete {paddock.name}?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This removes the paddock and its boundary from the farm. This can't be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
-              <AlertDialogFooter>
-                <AlertDialogCancel className="cursor-pointer" disabled={deleting}>
-                  Cancel
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  variant="destructive"
-                  className="cursor-pointer"
-                  disabled={deleting}
-                  onClick={confirmDelete}
-                >
-                  {deleting ? 'Deleting…' : 'Delete'}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <div className="flex items-center gap-1.5">
+            <Button variant="outline" size="sm" className="cursor-pointer" onClick={onEditBoundary}>
+              <Spline />
+              Edit boundary
+            </Button>
+            <AlertDialog open={open} onOpenChange={changeOpen}>
+              <AlertDialogTrigger render={<Button variant="destructive" size="sm" className="cursor-pointer" />}>
+                <Trash2 />
+                Delete
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete {paddock.name}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This removes the paddock and its boundary from the farm. This can't be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="cursor-pointer" disabled={deleting}>
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    className="cursor-pointer"
+                    disabled={deleting}
+                    onClick={confirmDelete}
+                  >
+                    {deleting ? 'Deleting…' : 'Delete'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
       )}
 

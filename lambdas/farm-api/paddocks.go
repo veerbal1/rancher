@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -133,16 +134,42 @@ func listPaddocks(ctx context.Context, farmerID string) (events.APIGatewayV2HTTP
 	return respond(http.StatusOK, paddocks)
 }
 
-func renamePaddock(ctx context.Context, farmerID, paddockID, body string) (events.APIGatewayV2HTTPResponse, error) {
+func updatePaddock(ctx context.Context, farmerID, paddockID, body string) (events.APIGatewayV2HTTPResponse, error) {
 	var in struct {
-		Name string `json:"name"`
+		Name    *string  `json:"name"`
+		Polygon *Polygon `json:"polygon"`
 	}
 	if err := json.Unmarshal([]byte(body), &in); err != nil {
 		return respond(http.StatusBadRequest, errorBody("invalid JSON"))
 	}
-	name := strings.TrimSpace(in.Name)
-	if name == "" || len(name) > 60 {
-		return respond(http.StatusBadRequest, errorBody("name must be 1-60 characters"))
+	if in.Name == nil && in.Polygon == nil {
+		return respond(http.StatusBadRequest, errorBody("send a name, a polygon, or both"))
+	}
+
+	var sets []string
+	names := map[string]string{}
+	values := map[string]types.AttributeValue{}
+	if in.Name != nil {
+		name := strings.TrimSpace(*in.Name)
+		if name == "" || len(name) > 60 {
+			return respond(http.StatusBadRequest, errorBody("name must be 1-60 characters"))
+		}
+		sets = append(sets, "#name = :name")
+		names["#name"] = "name"
+		values[":name"] = &types.AttributeValueMemberS{Value: name}
+	}
+	if in.Polygon != nil {
+		if msg := validatePolygon(*in.Polygon); msg != "" {
+			return respond(http.StatusBadRequest, errorBody(msg))
+		}
+		polygon, err := attributevalue.Marshal(*in.Polygon)
+		if err != nil {
+			return events.APIGatewayV2HTTPResponse{}, err
+		}
+		sets = append(sets, "#polygon = :polygon", "area_ha = :area")
+		names["#polygon"] = "polygon"
+		values[":polygon"] = polygon
+		values[":area"] = &types.AttributeValueMemberN{Value: strconv.FormatFloat(areaHa(in.Polygon.Coordinates[0]), 'f', -1, 64)}
 	}
 
 	out, err := db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
@@ -151,10 +178,10 @@ func renamePaddock(ctx context.Context, farmerID, paddockID, body string) (event
 			"PK": &types.AttributeValueMemberS{Value: "FARMER#" + farmerID},
 			"SK": &types.AttributeValueMemberS{Value: "PADDOCK#" + paddockID},
 		},
-		UpdateExpression:          aws.String("SET #name = :name"),
+		UpdateExpression:          aws.String("SET " + strings.Join(sets, ", ")),
 		ConditionExpression:       aws.String("attribute_exists(PK)"),
-		ExpressionAttributeNames:  map[string]string{"#name": "name"},
-		ExpressionAttributeValues: map[string]types.AttributeValue{":name": &types.AttributeValueMemberS{Value: name}},
+		ExpressionAttributeNames:  names,
+		ExpressionAttributeValues: values,
 		ReturnValues:              types.ReturnValueAllNew,
 	})
 	var notFound *types.ConditionalCheckFailedException

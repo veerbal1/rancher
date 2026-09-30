@@ -59,14 +59,17 @@ export function usePaddocks(farmerId: string | null) {
     setPaddocks((prev) => prev.filter((p) => p.id !== id))
   }
 
-  const renamePaddock = async (id: string, name: string): Promise<Paddock> => {
+  const updatePaddock = async (id: string, patch: { name?: string; ring?: LngLat[] }): Promise<Paddock> => {
     if (!farmerId) throw new Error('no farmer selected')
     const res = await fetch(
       `${FARM_API_URL}/farmers/${encodeURIComponent(farmerId)}/paddocks/${encodeURIComponent(id)}`,
       {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({
+          name: patch.name,
+          polygon: patch.ring ? { type: 'Polygon', coordinates: [patch.ring] } : undefined,
+        }),
       },
     )
     const body = await res.json()
@@ -75,5 +78,5 @@ export function usePaddocks(farmerId: string | null) {
     return body
   }
 
-  return { paddocks, error, createPaddock, renamePaddock, deletePaddock }
+  return { paddocks, error, createPaddock, updatePaddock, deletePaddock }
 }
