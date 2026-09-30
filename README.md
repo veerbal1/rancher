@@ -296,3 +296,71 @@ The "now" row is also a regression test: `TestCuedCowTurnsAndWalksAway` fails if
 
 Code: [`edge/cow.go`](edge/cow.go) (`Startle` and `Step`) and [`edge/collar.go`](edge/collar.go) (`assess`)
 
+### Herd moves along a lane
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/lane-dark.svg">
+  <img src="docs/lane.svg" alt="Left: real simulator traces of 10 cows leaving an old paddock through a gate, walking an L-shaped 8 m lane and arriving in a new paddock, in four phases: head for the gate, within 10 m of it aim 5 m into the lane, in the lane aim 5 m ahead on the path, in the new paddock head for the centre. They take 7.8 minutes on average to walk 500 m, drift at most 2.6 m from the centre line, and are guided for 3% of the time in the lane. Top right: a cow 2.4 m off the centre line aims at a target 5 m ahead; the right emitter fires and she turns left by 0.6 times the angle. Bottom right: guidance switches on above 1.5 m of drift and off below 1 m.">
+</picture>
+
+To move a herd, the farmer picks the new paddock and draws the path the cows should walk. Each collar turns that drawing into a temporary fence and something to aim at, and only nudges its cow when she strays.
+
+**The lane** is every point within 4 m of the drawn path, so 8 m wide by default.
+
+**The gate** is where the path first leaves the old paddock. The collar takes the first path segment that starts inside and ends outside, and intersects it with every paddock edge. For segments $a \to b$ and $c \to d$, with $r = b - a$, $s = d - c$ and $q = c - a$:
+
+```math
+t = \frac{q \times s}{r \times s} \qquad u = \frac{q \times r}{r \times s} \qquad \text{they cross if } 0 \le t \le 1 \text{ and } 0 \le u \le 1
+```
+
+Here $\times$ is the 2D cross product $x_1 y_2 - y_1 x_2$, and the smallest $t$ wins. The farmer never marks a gate: the collar works it out from the drawing. Like ray casting, this runs on raw degrees, because stretching an axis doesn't change $t$ or $u$.
+
+**The move fence** is the union of all three:
+
+```math
+F_{\text{move}} = F_{\text{old}} \ \cup\ \{\, p : \mathrm{dist}(p, \text{path}) \le 4\ \text{m} \,\} \ \cup\ F_{\text{new}}
+```
+
+- Inside a paddock, its walls are its edges minus the stretch inside the lane, so the gate is an opening rather than a wall to be cued at.
+- In the lane, the walls are the two points 4 m either side of the path, square to it at her position.
+- Everything from threat detection works unchanged against these walls.
+
+**Where to aim**, numbered as in the diagram:
+
+1. In the old paddock, head for the gate.
+2. Within 10 m of the gate, aim 5 m into the lane instead. Aiming at the gate itself made cows oversteer and swing into the lane's wall.
+3. In the lane, find her nearest point on the path, at distance $s^*$ along it, and aim 5 m further on:
+
+   ```math
+   \text{target} = \text{path}(s^* + 5\ \text{m}) \qquad d = \text{her distance from the path}
+   ```
+
+   This is the look-ahead idea from pure-pursuit path tracking. Chasing a point ahead instead of the nearest one rounds corners smoothly and damps zig-zagging.
+4. In the new paddock, head for its centre. She has arrived once she's inside and at least 10 m from its edges, and the collar switches to the new paddock's fence.
+
+**Steering.** In the lane she steers $0.3\,\theta$ toward the target by herself each second, with little random wander (±0.08 rad), because cows naturally follow a lane. The collar only steps in when she strays, and switches off later than it switches on:
+
+```math
+\text{guiding} \leftarrow
+\begin{cases}
+\text{on} & \text{if } \lvert\theta\rvert > 60^\circ \text{ or } d > 1.5\ \text{m} \\
+\text{off} & \text{if } \lvert\theta\rvert < 30^\circ \text{ and } d < 1\ \text{m} \\
+\text{unchanged} & \text{otherwise}
+\end{cases}
+```
+
+While guiding, it fires the emitter away from the target (both if the target is more than 150° behind her) and turns her by $0.6\,\lvert\theta\rvert$: a small stray gets a small nudge.
+
+- Guidance waits while a fence cue is on, so the two never pull against each other.
+- Guidance never startles her. A brisk walk-off after a nudge made cows overshoot the gate.
+
+**Measured**, with 10 cows on the 500 m L-shaped lane in the diagram:
+- They take 7.8 minutes on average.
+- The furthest any cow strays from the centre line is 2.6 m, against a lane edge at 4 m.
+- Guidance is on 3% of the time in the lane.
+- Fence cues come about once every 2¼ minutes per cow.
+
+`TestCowsWalkTheLaneWithFewCues` fails if fence cues in the lane go above one per cow every 2 minutes.
+
+Code: [`edge/lane.go`](edge/lane.go) (`Gate`, `segmentHit` and `MoveFence`), [`edge/shift.go`](edge/shift.go) (`Guide`) and [`edge/collar.go`](edge/collar.go) (`followShift` and `guide`)
+
