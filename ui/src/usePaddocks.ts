@@ -18,6 +18,7 @@ export type Paddock = {
   fence_version?: number
   kind?: PaddockKind
   capacity?: number
+  running_session?: string
   created_at: string
 }
 
@@ -70,7 +71,10 @@ export function usePaddocks(farmerId: string | null) {
     setPaddocks((prev) => prev.filter((p) => p.id !== id))
   }
 
-  const updatePaddock = async (id: string, patch: { name?: string; ring?: LngLat[]; kind?: PaddockKind }): Promise<Paddock> => {
+  const updatePaddock = async (
+    id: string,
+    patch: { name?: string; ring?: LngLat[]; kind?: PaddockKind; capacity?: number },
+  ): Promise<Paddock> => {
     if (!farmerId) throw new Error('no farmer selected')
     const res = await fetch(
       `${FARM_API_URL}/farmers/${encodeURIComponent(farmerId)}/paddocks/${encodeURIComponent(id)}`,
@@ -81,6 +85,7 @@ export function usePaddocks(farmerId: string | null) {
           name: patch.name,
           polygon: patch.ring ? { type: 'Polygon', coordinates: [patch.ring] } : undefined,
           kind: patch.kind,
+          capacity: patch.capacity,
         }),
       },
     )
