@@ -63,7 +63,7 @@ resource "aws_apigatewayv2_api" "farm" {
 
   cors_configuration {
     allow_origins = ["http://localhost:5173", "https://${aws_cloudfront_distribution.web.domain_name}"]
-    allow_methods = ["GET", "POST", "PATCH", "DELETE"]
+    allow_methods = ["GET", "POST", "PUT", "PATCH", "DELETE"]
     allow_headers = ["content-type"]
   }
 }
@@ -96,6 +96,8 @@ resource "aws_apigatewayv2_route" "farm_api" {
     "POST /farmers/{id}/milking-sessions",
     "GET /farmers/{id}/milking-sessions",
     "POST /farmers/{id}/milking-sessions/{sessionId}/stop",
+    "GET /farmers/{id}/milking-schedule",
+    "PUT /farmers/{id}/milking-schedule",
   ])
 
   api_id    = aws_apigatewayv2_api.farm.id
