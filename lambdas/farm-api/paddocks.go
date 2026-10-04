@@ -33,15 +33,16 @@ type Polygon struct {
 }
 
 type Paddock struct {
-	ID           string  `json:"id"         dynamodbav:"id"`
-	FarmerID     string  `json:"farmer_id"  dynamodbav:"farmer_id"`
-	Name         string  `json:"name"       dynamodbav:"name"`
-	Polygon      Polygon `json:"polygon"    dynamodbav:"polygon"`
-	AreaHa       float64 `json:"area_ha"    dynamodbav:"area_ha"`
-	FenceVersion int     `json:"fence_version" dynamodbav:"fence_version"`
-	Kind         string  `json:"kind"       dynamodbav:"kind"`
-	Capacity     int     `json:"capacity,omitempty" dynamodbav:"capacity,omitempty"`
-	CreatedAt    string  `json:"created_at" dynamodbav:"created_at"`
+	ID             string  `json:"id"         dynamodbav:"id"`
+	FarmerID       string  `json:"farmer_id"  dynamodbav:"farmer_id"`
+	Name           string  `json:"name"       dynamodbav:"name"`
+	Polygon        Polygon `json:"polygon"    dynamodbav:"polygon"`
+	AreaHa         float64 `json:"area_ha"    dynamodbav:"area_ha"`
+	FenceVersion   int     `json:"fence_version" dynamodbav:"fence_version"`
+	Kind           string  `json:"kind"       dynamodbav:"kind"`
+	Capacity       int     `json:"capacity,omitempty" dynamodbav:"capacity,omitempty"`
+	RunningSession string  `json:"running_session,omitempty" dynamodbav:"running_session,omitempty"`
+	CreatedAt      string  `json:"created_at" dynamodbav:"created_at"`
 }
 
 type paddockItem struct {
@@ -153,15 +154,16 @@ func listPaddocks(ctx context.Context, farmerID string) (events.APIGatewayV2HTTP
 
 func updatePaddock(ctx context.Context, farmerID, paddockID, body string) (events.APIGatewayV2HTTPResponse, error) {
 	var in struct {
-		Name    *string  `json:"name"`
-		Polygon *Polygon `json:"polygon"`
-		Kind    *string  `json:"kind"`
+		Name     *string  `json:"name"`
+		Polygon  *Polygon `json:"polygon"`
+		Kind     *string  `json:"kind"`
+		Capacity *int     `json:"capacity"`
 	}
 	if err := json.Unmarshal([]byte(body), &in); err != nil {
 		return respond(http.StatusBadRequest, errorBody("invalid JSON"))
 	}
-	if in.Name == nil && in.Polygon == nil && in.Kind == nil {
-		return respond(http.StatusBadRequest, errorBody("send a name, a polygon or a kind"))
+	if in.Name == nil && in.Polygon == nil && in.Kind == nil && in.Capacity == nil {
+		return respond(http.StatusBadRequest, errorBody("send a name, a polygon, a kind or a capacity"))
 	}
 
 	var sets, adds []string
@@ -180,15 +182,25 @@ func updatePaddock(ctx context.Context, farmerID, paddockID, body string) (event
 		switch *in.Kind {
 		case kindPaddock, kindRestShed:
 		case kindMilkingShed:
-			sets = append(sets, "#capacity = if_not_exists(#capacity, :capacity)")
-			names["#capacity"] = "capacity"
-			values[":capacity"] = &types.AttributeValueMemberN{Value: strconv.Itoa(defaultShedCapacity)}
+			if in.Capacity == nil {
+				sets = append(sets, "#capacity = if_not_exists(#capacity, :capacity)")
+				names["#capacity"] = "capacity"
+				values[":capacity"] = &types.AttributeValueMemberN{Value: strconv.Itoa(defaultShedCapacity)}
+			}
 		default:
 			return respond(http.StatusBadRequest, errorBody("kind must be paddock, milking_shed or rest_shed"))
 		}
 		sets = append(sets, "#kind = :kind")
 		names["#kind"] = "kind"
 		values[":kind"] = &types.AttributeValueMemberS{Value: *in.Kind}
+	}
+	if in.Capacity != nil {
+		if *in.Capacity < 1 || *in.Capacity > maxCowsPerSession {
+			return respond(http.StatusBadRequest, errorBody(fmt.Sprintf("capacity must be 1-%d", maxCowsPerSession)))
+		}
+		sets = append(sets, "#capacity = :capacity")
+		names["#capacity"] = "capacity"
+		values[":capacity"] = &types.AttributeValueMemberN{Value: strconv.Itoa(*in.Capacity)}
 	}
 	if in.Polygon != nil {
 		if msg := validatePolygon(*in.Polygon); msg != "" {
