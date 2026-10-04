@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Route } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -17,10 +18,12 @@ type Props = {
   paddock: Paddock
   paddocks: Paddock[]
   cowCount: number
+  cowName?: string
+  disabled?: boolean
   onPick: (toPaddockId: string) => void
 }
 
-export function MoveHerdDialog({ paddock, paddocks, cowCount, onPick }: Props) {
+export function MoveHerdDialog({ paddock, paddocks, cowCount, cowName, disabled, onPick }: Props) {
   const [open, setOpen] = useState(false)
   const [toId, setToId] = useState<string | null>(null)
 
@@ -40,17 +43,29 @@ export function MoveHerdDialog({ paddock, paddocks, cowCount, onPick }: Props) {
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger
-        render={<Button variant="outline" size="sm" className="cursor-pointer" disabled={cowCount === 0 || items.length === 0} />}
+        render={
+          <Button variant="outline" size={cowName ? 'default' : 'sm'} className="cursor-pointer" disabled={disabled || cowCount === 0 || items.length === 0} />
+        }
       >
-        Move herd
+        {cowName ? (
+          <>
+            <Route />
+            Move to paddock
+          </>
+        ) : (
+          'Move herd'
+        )}
       </DialogTrigger>
 
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Move herd from {paddock.name}</DialogTitle>
+          <DialogTitle>
+            Move {cowName ?? 'herd'} from {paddock.name}
+          </DialogTitle>
           <DialogDescription>
-            Pick where the {cowCount} cow{cowCount === 1 ? '' : 's'} here should go, then draw the lane they walk along.
-            Collars guide each cow to the gate, down the lane and into the new paddock.
+            {cowName
+              ? `Pick where ${cowName} should go, then draw the lane. The collar guides the cow to the gate, down the lane and into the new paddock. The rest of the herd stays.`
+              : `Pick where the ${cowCount} cow${cowCount === 1 ? '' : 's'} here should go, then draw the lane they walk along. Collars guide each cow to the gate, down the lane and into the new paddock.`}
           </DialogDescription>
         </DialogHeader>
 
