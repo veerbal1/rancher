@@ -93,6 +93,9 @@ resource "aws_apigatewayv2_route" "farm_api" {
     "POST /farmers/{id}/shifts/{shiftId}/turn-back",
     "POST /farmers/{id}/lanes",
     "GET /farmers/{id}/lanes",
+    "POST /farmers/{id}/milking-sessions",
+    "GET /farmers/{id}/milking-sessions",
+    "POST /farmers/{id}/milking-sessions/{sessionId}/stop",
   ])
 
   api_id    = aws_apigatewayv2_api.farm.id
