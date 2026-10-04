@@ -21,6 +21,7 @@ import { KINDS, usePaddocks, type PaddockKind } from './usePaddocks'
 import { useCollars, type Collar } from './useCollars'
 import { useActiveShifts, useShifts, type Shift } from './useShifts'
 import { useLanes } from './useLanes'
+import { useMilking } from './useMilking'
 import { useCueSound } from './useCueSound'
 import { useFarmSounds } from './useFarmSounds'
 import { MenuPanel } from './components/MenuPanel'
@@ -33,6 +34,7 @@ import { SoundToggle } from './components/SoundToggle'
 import { LiveBadge } from './components/LiveBadge'
 import { ShiftBanner } from './components/ShiftBanner'
 import { CowPanel } from './components/CowPanel'
+import { MilkingPanel } from './components/MilkingPanel'
 
 const INITIAL_BOUNDS: [LngLat, LngLat] = [toLngLat(-40, -40), toLngLat(140, 140)]
 
@@ -49,6 +51,7 @@ function App() {
   const { collars, error: collarsError, buyCollars, assignCollars, deleteCollars, moveLocally, forgetPaddock } = useCollars(selectedFarmerId)
   const { shifts, error: shiftsError, startShift, turnBack } = useShifts(selectedFarmerId)
   const { lanes, error: lanesError, saveLane } = useLanes(selectedFarmerId)
+  const { sessions, error: milkingError, startMilking, stopMilking } = useMilking(selectedFarmerId)
   const activeShifts = useActiveShifts(shifts, cows)
   const [soundOn, setSoundOn] = useState(false)
   const [pathDraft, setPathDraft] = useState<{ fromId: string; toId: string; collarIds?: string[]; lane?: boolean } | null>(null)
@@ -69,7 +72,8 @@ function App() {
   const reshaping = paddocks.find((p) => p.id === reshape?.id)
   const busyOnMap = drawingPaddock || !!pathDraft || !!reshape
 
-  const error = cowsError || farmersError || paddocksError || collarsError || shiftsError || lanesError
+  const error = cowsError || farmersError || paddocksError || collarsError || shiftsError || lanesError || milkingError
+  const shedSession = sessions.find((s) => s.status === 'running' && s.shed_id === selectedPaddock?.id)
   const liveLanes = useMemo(
     () => lanes.filter((l) => paddocks.some((p) => p.id === l.from_paddock_id) && paddocks.some((p) => p.id === l.to_paddock_id)),
     [lanes, paddocks],
@@ -236,6 +240,40 @@ function App() {
     }
   }
 
+  const startMilkingInShed = async (fromId: string, toId: string) => {
+    if (!selectedPaddock) return false
+    try {
+      const session = await startMilking(fromId, selectedPaddock.id, toId)
+      toast.success(`Milking started in ${selectedPaddock.name}`, {
+        description: `${session.cows.length} cows waiting in ${paddockName(fromId)}`,
+      })
+      return true
+    } catch (err) {
+      toast.error('Could not start milking', { description: err instanceof Error ? err.message : String(err) })
+      return false
+    }
+  }
+
+  const stopMilkingInShed = async () => {
+    if (!shedSession) return
+    try {
+      await stopMilking(shedSession.id)
+      toast.success('Milking stopped', { description: 'Cows already walking finish their walk' })
+    } catch (err) {
+      toast.error('Could not stop milking', { description: err instanceof Error ? err.message : String(err) })
+    }
+  }
+
+  const changeShedCapacity = async (capacity: number) => {
+    if (!selectedPaddock) return
+    try {
+      await updatePaddock(selectedPaddock.id, { capacity })
+      toast.success(`${selectedPaddock.name} holds ${capacity} cows at a time`)
+    } catch (err) {
+      toast.error('Could not change the capacity', { description: err instanceof Error ? err.message : String(err) })
+    }
+  }
+
   const turnBackShift = async (shift: Shift) => {
     try {
       const back = await turnBack(shift)
@@ -390,6 +428,17 @@ function App() {
             onAssignCollars={saveCollarAssignment}
             onMoveHerd={startDrawingPath}
             onDrawLane={startDrawingLane}
+          />
+        )}
+        {selectedPaddock?.kind === 'milking_shed' && (
+          <MilkingPanel
+            key={selectedPaddock.id}
+            shed={selectedPaddock}
+            paddocks={paddocks}
+            session={shedSession}
+            onStart={startMilkingInShed}
+            onStop={stopMilkingInShed}
+            onChangeCapacity={changeShedCapacity}
           />
         )}
         <CollarsSection collars={collars} cows={cows} paddocks={paddocks} canAdd={!!selectedFarmer} onAdd={addCollars} onDelete={removeCollars} onUnassign={unassignCollars} selectedId={selectedCollarId} onSelect={setSelectedCollarId} />
