@@ -31,7 +31,12 @@ export function PaddockLabelsLayer({ selectedId }: { selectedId: string | null }
       source="paddocks"
       type="symbol"
       layout={{
-        'text-field': ['concat', ['get', 'name'], ' · ', ['to-string', ['get', 'area_ha']], ' ha'],
+        'text-field': [
+          'case',
+          ['==', ['get', 'kind'], 'milking_shed'],
+          ['concat', ['get', 'name'], ' · ', ['to-string', ['get', 'capacity']], ' cows'],
+          ['concat', ['get', 'name'], ' · ', ['to-string', ['get', 'area_ha']], ' ha'],
+        ],
         'text-font': ['Amazon Ember Bold,Noto Sans Bold'],
         'text-size': 13,
         'text-max-width': 12,
