@@ -24,7 +24,7 @@ export function ShiftBanner({ shift, paddocks, onTurnBack }: Props) {
   }
 
   return (
-    <div className="fixed top-4 right-[26rem] left-20 z-10 flex items-center gap-3 rounded-2xl border border-white/60 bg-white/85 px-4 py-2.5 text-sm shadow-lg backdrop-blur-xl">
+    <div className="flex items-center gap-3 rounded-2xl border border-white/60 bg-white/85 px-4 py-2.5 text-sm shadow-lg backdrop-blur-xl">
       <span className="size-2.5 shrink-0 rounded-full bg-blue-500" />
       <p className="min-w-0 flex-1">
         Moving {n} cow{n === 1 ? '' : 's'} from {name(shift.from_paddock_id)} to {name(shift.to_paddock_id)}
