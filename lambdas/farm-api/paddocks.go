@@ -20,6 +20,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
+const (
+	kindPaddock         = "paddock"
+	kindMilkingShed     = "milking_shed"
+	kindRestShed        = "rest_shed"
+	defaultShedCapacity = 20
+)
+
 type Polygon struct {
 	Type        string        `json:"type"        dynamodbav:"type"`
 	Coordinates [][][]float64 `json:"coordinates" dynamodbav:"coordinates"`
@@ -32,6 +39,8 @@ type Paddock struct {
 	Polygon      Polygon `json:"polygon"    dynamodbav:"polygon"`
 	AreaHa       float64 `json:"area_ha"    dynamodbav:"area_ha"`
 	FenceVersion int     `json:"fence_version" dynamodbav:"fence_version"`
+	Kind         string  `json:"kind"       dynamodbav:"kind"`
+	Capacity     int     `json:"capacity,omitempty" dynamodbav:"capacity,omitempty"`
 	CreatedAt    string  `json:"created_at" dynamodbav:"created_at"`
 }
 
@@ -68,6 +77,7 @@ func createPaddock(ctx context.Context, farmerID, body string) (events.APIGatewa
 		Polygon:      in.Polygon,
 		AreaHa:       areaHa(in.Polygon.Coordinates[0]),
 		FenceVersion: 1,
+		Kind:         kindPaddock,
 		CreatedAt:    time.Now().UTC().Format(time.RFC3339),
 	}
 	item, err := attributevalue.MarshalMap(paddockItem{PK: "FARMER#" + farmerID, SK: "PADDOCK#" + p.ID, Paddock: p})
@@ -126,6 +136,11 @@ func listPaddocks(ctx context.Context, farmerID string) (events.APIGatewayV2HTTP
 		}
 		paddocks = append(paddocks, batch...)
 	}
+	for i := range paddocks {
+		if paddocks[i].Kind == "" {
+			paddocks[i].Kind = kindPaddock
+		}
+	}
 
 	sort.Slice(paddocks, func(i, j int) bool {
 		if paddocks[i].CreatedAt != paddocks[j].CreatedAt {
@@ -140,12 +155,13 @@ func updatePaddock(ctx context.Context, farmerID, paddockID, body string) (event
 	var in struct {
 		Name    *string  `json:"name"`
 		Polygon *Polygon `json:"polygon"`
+		Kind    *string  `json:"kind"`
 	}
 	if err := json.Unmarshal([]byte(body), &in); err != nil {
 		return respond(http.StatusBadRequest, errorBody("invalid JSON"))
 	}
-	if in.Name == nil && in.Polygon == nil {
-		return respond(http.StatusBadRequest, errorBody("send a name, a polygon, or both"))
+	if in.Name == nil && in.Polygon == nil && in.Kind == nil {
+		return respond(http.StatusBadRequest, errorBody("send a name, a polygon or a kind"))
 	}
 
 	var sets, adds []string
@@ -159,6 +175,20 @@ func updatePaddock(ctx context.Context, farmerID, paddockID, body string) (event
 		sets = append(sets, "#name = :name")
 		names["#name"] = "name"
 		values[":name"] = &types.AttributeValueMemberS{Value: name}
+	}
+	if in.Kind != nil {
+		switch *in.Kind {
+		case kindPaddock, kindRestShed:
+		case kindMilkingShed:
+			sets = append(sets, "#capacity = if_not_exists(#capacity, :capacity)")
+			names["#capacity"] = "capacity"
+			values[":capacity"] = &types.AttributeValueMemberN{Value: strconv.Itoa(defaultShedCapacity)}
+		default:
+			return respond(http.StatusBadRequest, errorBody("kind must be paddock, milking_shed or rest_shed"))
+		}
+		sets = append(sets, "#kind = :kind")
+		names["#kind"] = "kind"
+		values[":kind"] = &types.AttributeValueMemberS{Value: *in.Kind}
 	}
 	if in.Polygon != nil {
 		if msg := validatePolygon(*in.Polygon); msg != "" {
