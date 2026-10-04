@@ -11,6 +11,7 @@ const (
 	laneWander   = 0.08
 	commitTicks  = 8
 	commitSpeed  = 1.5
+	walkSpeed    = 1.0
 )
 
 type Cow struct {
@@ -28,7 +29,7 @@ func NewCow(lng, lat float64, rng *rand.Rand) *Cow {
 		Lat:     lat,
 		Lng:     lng,
 		Heading: rng.Float64() * 2 * math.Pi,
-		Speed:   1,
+		Speed:   walkSpeed,
 		Wander:  grazeWander,
 		rng:     rng,
 	}
