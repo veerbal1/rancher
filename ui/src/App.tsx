@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { Button } from '@/components/ui/button'
 import { SatelliteMap } from './map/SatelliteMap'
 import { CowsLayer } from './map/CowsLayer'
+import { LanesLayer } from './map/LanesLayer'
 import { ShiftLayer } from './map/ShiftLayer'
 import { DrawPaddock } from './map/DrawPaddock'
 import { DraftPaddockLayer } from './map/DraftPaddockLayer'
@@ -19,6 +20,7 @@ import { useFarmers, type Location } from './useFarmers'
 import { KINDS, usePaddocks, type PaddockKind } from './usePaddocks'
 import { useCollars, type Collar } from './useCollars'
 import { useActiveShifts, useShifts, type Shift } from './useShifts'
+import { useLanes } from './useLanes'
 import { useCueSound } from './useCueSound'
 import { useFarmSounds } from './useFarmSounds'
 import { MenuPanel } from './components/MenuPanel'
@@ -46,9 +48,10 @@ function App() {
   const [selectedCollarId, setSelectedCollarId] = useState<string | null>(null)
   const { collars, error: collarsError, buyCollars, assignCollars, deleteCollars, moveLocally, forgetPaddock } = useCollars(selectedFarmerId)
   const { shifts, error: shiftsError, startShift, turnBack } = useShifts(selectedFarmerId)
+  const { lanes, error: lanesError, saveLane } = useLanes(selectedFarmerId)
   const activeShifts = useActiveShifts(shifts, cows)
   const [soundOn, setSoundOn] = useState(false)
-  const [pathDraft, setPathDraft] = useState<{ fromId: string; toId: string; collarIds?: string[] } | null>(null)
+  const [pathDraft, setPathDraft] = useState<{ fromId: string; toId: string; collarIds?: string[]; lane?: boolean } | null>(null)
   const [reshape, setReshape] = useState<{ id: string; ring: LngLat[] } | null>(null)
   const [savingShape, setSavingShape] = useState(false)
   useCueSound(cows, soundOn)
@@ -66,7 +69,11 @@ function App() {
   const reshaping = paddocks.find((p) => p.id === reshape?.id)
   const busyOnMap = drawingPaddock || !!pathDraft || !!reshape
 
-  const error = cowsError || farmersError || paddocksError || collarsError || shiftsError
+  const error = cowsError || farmersError || paddocksError || collarsError || shiftsError || lanesError
+  const liveLanes = useMemo(
+    () => lanes.filter((l) => paddocks.some((p) => p.id === l.from_paddock_id) && paddocks.some((p) => p.id === l.to_paddock_id)),
+    [lanes, paddocks],
+  )
 
   const getMapCenter = (): Location | null => {
     const center = map?.getCenter()
@@ -176,30 +183,56 @@ function App() {
 
   const paddockName = (id: string) => paddocks.find((p) => p.id === id)?.name ?? 'the paddock'
 
-  const startDrawingPath = (toPaddockId: string) => {
+  const sendMove = async (fromId: string, toId: string, path: LngLat[], collarIds?: string[]) => {
+    try {
+      const shift = await startShift(fromId, toId, path, collarIds)
+      moveLocally(shift.collar_ids, toId)
+      const n = shift.collar_ids.length
+      toast.success(`Moving ${n} cow${n === 1 ? '' : 's'} to ${paddockName(toId)}`, { description: 'Starts in 10 seconds' })
+    } catch (err) {
+      toast.error('Could not start the move', { description: err instanceof Error ? err.message : String(err) })
+    }
+  }
+
+  const beginMove = (fromId: string, toId: string, useSavedLane: boolean, collarIds?: string[]) => {
+    setDrawingPaddock(false)
+    setDraftRing(null)
+    if (useSavedLane) {
+      void sendMove(fromId, toId, [], collarIds)
+      return
+    }
+    setPathDraft({ fromId, toId, collarIds })
+  }
+
+  const startDrawingPath = (toPaddockId: string, useSavedLane: boolean) => {
+    if (!selectedPaddock) return
+    beginMove(selectedPaddock.id, toPaddockId, useSavedLane)
+  }
+
+  const startMovingCow = (toPaddockId: string, useSavedLane: boolean) => {
+    if (!selectedCollar?.paddock_id) return
+    beginMove(selectedCollar.paddock_id, toPaddockId, useSavedLane, [selectedCollar.id])
+  }
+
+  const startDrawingLane = (toPaddockId: string) => {
     if (!selectedPaddock) return
     setDrawingPaddock(false)
     setDraftRing(null)
-    setPathDraft({ fromId: selectedPaddock.id, toId: toPaddockId })
-  }
-
-  const startMovingCow = (toPaddockId: string) => {
-    if (!selectedCollar?.paddock_id) return
-    setDrawingPaddock(false)
-    setDraftRing(null)
-    setPathDraft({ fromId: selectedCollar.paddock_id, toId: toPaddockId, collarIds: [selectedCollar.id] })
+    setPathDraft({ fromId: selectedPaddock.id, toId: toPaddockId, lane: true })
   }
 
   const handlePathDrawn = async (path: LngLat[]) => {
     if (!pathDraft) return
     setPathDraft(null)
+    if (!pathDraft.lane) {
+      await sendMove(pathDraft.fromId, pathDraft.toId, path, pathDraft.collarIds)
+      return
+    }
     try {
-      const shift = await startShift(pathDraft.fromId, pathDraft.toId, path, pathDraft.collarIds)
-      moveLocally(shift.collar_ids, pathDraft.toId)
-      const n = shift.collar_ids.length
-      toast.success(`Moving ${n} cow${n === 1 ? '' : 's'} to ${paddockName(pathDraft.toId)}`, { description: 'Starts in 10 seconds' })
+      await saveLane(pathDraft.fromId, pathDraft.toId, path)
+      toast.success(`Lane saved: ${paddockName(pathDraft.fromId)} to ${paddockName(pathDraft.toId)}`)
     } catch (err) {
-      toast.error('Could not start the move', { description: err instanceof Error ? err.message : String(err) })
+      toast.error('Could not save the lane', { description: err instanceof Error ? err.message : String(err) })
     }
   }
 
@@ -259,6 +292,7 @@ function App() {
       >
         <PaddocksLayer paddocks={reshape ? paddocks.filter((p) => p.id !== reshape.id) : paddocks} selectedId={selectedPaddockId} />
         {draftRing && <DraftPaddockLayer ring={draftRing} />}
+        <LanesLayer lanes={liveLanes} />
         <CowsLayer cows={cows} selectedId={selectedCollarId} />
         <ShiftLayer shifts={activeShifts} />
         <PaddockLabelsLayer selectedId={selectedPaddockId} />
@@ -299,6 +333,7 @@ function App() {
           <p>
             Draw the lane: click inside {paddockName(pathDraft.fromId)}, along the lane, and finish inside{' '}
             {paddockName(pathDraft.toId)} by clicking the last point again or pressing Enter.
+            {pathDraft.lane && ' No cows move.'}
           </p>
           <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => setPathDraft(null)}>
             Cancel
@@ -312,6 +347,7 @@ function App() {
           cow={cows.find((c) => c.collar_id === selectedCollar.id)}
           paddock={paddocks.find((p) => p.id === selectedCollar.paddock_id)}
           paddocks={paddocks}
+          lanes={liveLanes}
           onMove={startMovingCow}
           onClose={closeCowPanel}
         />
@@ -346,12 +382,14 @@ function App() {
             collars={collars}
             cows={cows}
             paddocks={paddocks}
+            lanes={liveLanes}
             onRename={renameSelectedPaddock}
             onChangeKind={changeSelectedPaddockKind}
             onEditBoundary={startReshape}
             onDelete={deleteSelectedPaddock}
             onAssignCollars={saveCollarAssignment}
             onMoveHerd={startDrawingPath}
+            onDrawLane={startDrawingLane}
           />
         )}
         <CollarsSection collars={collars} cows={cows} paddocks={paddocks} canAdd={!!selectedFarmer} onAdd={addCollars} onDelete={removeCollars} onUnassign={unassignCollars} selectedId={selectedCollarId} onSelect={setSelectedCollarId} />
