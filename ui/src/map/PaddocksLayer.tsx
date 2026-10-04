@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { Source, Layer } from '@vis.gl/react-maplibre'
+import { useEffect, useMemo, useState } from 'react'
+import { Source, Layer, useMap } from '@vis.gl/react-maplibre'
 import type { FeatureCollection, Polygon } from 'geojson'
 import type { ExpressionSpecification } from 'maplibre-gl'
 import type { Paddock } from '../usePaddocks'
@@ -9,13 +9,46 @@ type Props = {
   selectedId: string | null
 }
 
+const ROOFS = {
+  'roof-white': { base: '#f4f4f1', ridge: '#d2d2cb', shine: '#ffffff' },
+  'roof-brown': { base: '#8b5a2b', ridge: '#6b4321', shine: '#a87140' },
+}
+
+function roofImage({ base, ridge, shine }: (typeof ROOFS)[keyof typeof ROOFS]) {
+  const size = 16
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = base
+  ctx.fillRect(0, 0, size, size)
+  for (const x of [0, size / 2]) {
+    ctx.fillStyle = ridge
+    ctx.fillRect(x, 0, 2, size)
+    ctx.fillStyle = shine
+    ctx.fillRect(x + 2, 0, 1, size)
+  }
+  return ctx.getImageData(0, 0, size, size)
+}
+
 export function PaddocksLayer({ paddocks, selectedId }: Props) {
+  const { current: mapRef } = useMap()
+  const [roofsReady, setRoofsReady] = useState(false)
+
+  useEffect(() => {
+    const map = mapRef?.getMap()
+    if (!map) return
+    for (const [id, colors] of Object.entries(ROOFS)) {
+      if (!map.hasImage(id)) map.addImage(id, roofImage(colors), { pixelRatio: 2 })
+    }
+    setRoofsReady(true)
+  }, [mapRef])
+
   const shapes = useMemo<FeatureCollection<Polygon>>(
     () => ({
       type: 'FeatureCollection',
       features: paddocks.map((p) => ({
         type: 'Feature',
-        properties: { id: p.id, name: p.name, area_ha: p.area_ha },
+        properties: { id: p.id, name: p.name, area_ha: p.area_ha, kind: p.kind ?? 'paddock', capacity: p.capacity ?? 0 },
         geometry: p.polygon,
       })),
     }),
@@ -29,13 +62,26 @@ export function PaddocksLayer({ paddocks, selectedId }: Props) {
       <Layer
         id="paddocks-fill"
         type="fill"
+        filter={['==', ['get', 'kind'], 'paddock']}
         paint={{ 'fill-color': '#2e9e5b', 'fill-opacity': ['case', isSelected, 0.4, 0.15] }}
       />
+      {roofsReady && (
+        <Layer
+          id="sheds-fill"
+          type="fill"
+          beforeId="paddocks-outline"
+          filter={['!=', ['get', 'kind'], 'paddock']}
+          paint={{
+            'fill-pattern': ['match', ['get', 'kind'], 'milking_shed', 'roof-white', 'roof-brown'],
+            'fill-opacity': ['case', isSelected, 1, 0.92],
+          }}
+        />
+      )}
       <Layer
         id="paddocks-outline"
         type="line"
         paint={{
-          'line-color': ['case', isSelected, '#ffd166', '#ffffff'],
+          'line-color': ['case', isSelected, '#ffd166', ['==', ['get', 'kind'], 'milking_shed'], '#8a8a84', '#ffffff'],
           'line-width': ['case', isSelected, 3, 1.5],
         }}
       />
