@@ -104,6 +104,7 @@ func createShift(ctx context.Context, farmerID, body string) (events.APIGatewayV
 		ToPaddockID   string     `json:"to_paddock_id"`
 		Path          LineString `json:"path"`
 		WidthM        float64    `json:"width_m"`
+		CollarIDs     []string   `json:"collar_ids"`
 	}
 	if err := json.Unmarshal([]byte(body), &in); err != nil {
 		return respond(http.StatusBadRequest, errorBody("invalid JSON"))
@@ -116,6 +117,13 @@ func createShift(ctx context.Context, farmerID, body string) (events.APIGatewayV
 	}
 	if in.WidthM < minLaneWidthM || in.WidthM > maxLaneWidthM {
 		return respond(http.StatusBadRequest, errorBody(fmt.Sprintf("width_m must be %.0f-%.0f", minLaneWidthM, maxLaneWidthM)))
+	}
+	seen := make(map[string]bool, len(in.CollarIDs))
+	for _, id := range in.CollarIDs {
+		if seen[id] {
+			return respond(http.StatusBadRequest, errorBody("collar_ids must not repeat a collar"))
+		}
+		seen[id] = true
 	}
 
 	var rings [][][]float64
@@ -155,9 +163,11 @@ func createShift(ctx context.Context, farmerID, body string) (events.APIGatewayV
 		}
 	}
 
-	collarIDs, err := collarIDsInPaddock(ctx, farmerID, in.FromPaddockID)
-	if err != nil {
-		return events.APIGatewayV2HTTPResponse{}, err
+	collarIDs := in.CollarIDs
+	if len(collarIDs) == 0 {
+		if collarIDs, err = collarIDsInPaddock(ctx, farmerID, in.FromPaddockID); err != nil {
+			return events.APIGatewayV2HTTPResponse{}, err
+		}
 	}
 	if len(collarIDs) == 0 {
 		return respond(http.StatusBadRequest, errorBody("no collars in that paddock"))
