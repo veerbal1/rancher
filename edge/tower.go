@@ -86,7 +86,7 @@ func (t *Tower) Reconcile(f WorldFarm) ReconcileResult {
 		case col.shift != nil && col.shift.ToID == *c.PaddockID:
 		case col.PaddockID != *c.PaddockID:
 			delete(t.pending, c.ID)
-			if s, from := findShift(f.Shifts, col.PaddockID, *c.PaddockID), fences[col.PaddockID]; s != nil && from != nil {
+			if s, from := findShift(f.Shifts, c.ID, col.PaddockID, *c.PaddockID), fences[col.PaddockID]; s != nil && from != nil {
 				shift := NewShift(s.ToPaddockID, from, fence, s.PathPoints(), s.WidthM, s.StartAt)
 				shift.ToVersion = version
 				col.StartShift(shift)
@@ -155,13 +155,15 @@ func sameFence(f Fence, p Polygon) bool {
 	return ok && slices.Equal(current, p)
 }
 
-func findShift(shifts []WorldShift, from, to string) *WorldShift {
+func findShift(shifts []WorldShift, collarID, from, to string) *WorldShift {
+	var found *WorldShift
 	for i := range shifts {
-		if shifts[i].FromPaddockID == from && shifts[i].ToPaddockID == to {
-			return &shifts[i]
+		s := &shifts[i]
+		if s.FromPaddockID == from && s.ToPaddockID == to && slices.Contains(s.CollarIDs, collarID) && (found == nil || s.StartAt.After(found.StartAt)) {
+			found = s
 		}
 	}
-	return nil
+	return found
 }
 
 func seedFor(id string) int64 {
