@@ -30,6 +30,7 @@ import { CollarsSection } from './components/CollarsSection'
 import { SoundToggle } from './components/SoundToggle'
 import { LiveBadge } from './components/LiveBadge'
 import { ShiftBanner } from './components/ShiftBanner'
+import { CowPanel } from './components/CowPanel'
 
 const INITIAL_BOUNDS: [LngLat, LngLat] = [toLngLat(-40, -40), toLngLat(140, 140)]
 
@@ -42,11 +43,12 @@ function App() {
   const [draftRing, setDraftRing] = useState<LngLat[] | null>(null)
   const { paddocks, error: paddocksError, createPaddock, updatePaddock, deletePaddock } = usePaddocks(selectedFarmerId)
   const [selectedPaddockId, setSelectedPaddockId] = useState<string | null>(null)
+  const [selectedCollarId, setSelectedCollarId] = useState<string | null>(null)
   const { collars, error: collarsError, buyCollars, assignCollars, deleteCollars, moveLocally, forgetPaddock } = useCollars(selectedFarmerId)
   const { shifts, error: shiftsError, startShift, turnBack } = useShifts(selectedFarmerId)
   const activeShifts = useActiveShifts(shifts, cows)
   const [soundOn, setSoundOn] = useState(false)
-  const [pathDraft, setPathDraft] = useState<{ fromId: string; toId: string } | null>(null)
+  const [pathDraft, setPathDraft] = useState<{ fromId: string; toId: string; collarIds?: string[] } | null>(null)
   const [reshape, setReshape] = useState<{ id: string; ring: LngLat[] } | null>(null)
   const [savingShape, setSavingShape] = useState(false)
   useCueSound(cows, soundOn)
@@ -54,6 +56,8 @@ function App() {
 
   const selectedFarmer = farmers.find((f) => f.id === selectedFarmerId)
   const selectedPaddock = paddocks.find((p) => p.id === selectedPaddockId)
+  const selectedCollar = collars.find((c) => c.id === selectedCollarId)
+  const closeCowPanel = useCallback(() => setSelectedCollarId(null), [])
   const overlaps = useMemo(() => (draftRing ? findOverlaps(draftRing, paddocks) : []), [draftRing, paddocks])
   const reshapeOverlaps = useMemo(
     () => (reshape ? findOverlaps(reshape.ring, paddocks.filter((p) => p.id !== reshape.id)) : []),
@@ -74,6 +78,7 @@ function App() {
     if (location) map?.flyTo({ center: [location.lng, location.lat], zoom: 16, duration: 1500 })
     setSelectedFarmerId(id)
     setSelectedPaddockId(null)
+    setSelectedCollarId(null)
     setDraftRing(null)
     setDrawingPaddock(false)
   }
@@ -168,11 +173,18 @@ function App() {
     setPathDraft({ fromId: selectedPaddock.id, toId: toPaddockId })
   }
 
+  const startMovingCow = (toPaddockId: string) => {
+    if (!selectedCollar?.paddock_id) return
+    setDrawingPaddock(false)
+    setDraftRing(null)
+    setPathDraft({ fromId: selectedCollar.paddock_id, toId: toPaddockId, collarIds: [selectedCollar.id] })
+  }
+
   const handlePathDrawn = async (path: LngLat[]) => {
     if (!pathDraft) return
     setPathDraft(null)
     try {
-      const shift = await startShift(pathDraft.fromId, pathDraft.toId, path)
+      const shift = await startShift(pathDraft.fromId, pathDraft.toId, path, pathDraft.collarIds)
       moveLocally(shift.collar_ids, pathDraft.toId)
       const n = shift.collar_ids.length
       toast.success(`Moving ${n} cow${n === 1 ? '' : 's'} to ${paddockName(pathDraft.toId)}`, { description: 'Starts in 10 seconds' })
@@ -212,8 +224,14 @@ function App() {
   }
 
   const handleMapClick = (e: MapLayerMouseEvent) => {
+    const cow = e.features?.find((f) => f.source === 'cows')
+    if (cow) {
+      setSelectedCollarId(cow.properties.collar_id)
+      return
+    }
     const id = e.features?.[0]?.properties?.id
     setSelectedPaddockId(typeof id === 'string' ? id : null)
+    setSelectedCollarId(null)
   }
 
   return (
@@ -226,12 +244,12 @@ function App() {
 
       <SatelliteMap
         initialBounds={INITIAL_BOUNDS}
-        interactiveLayerIds={busyOnMap ? [] : ['paddocks-fill']}
+        interactiveLayerIds={busyOnMap ? [] : ['cow-icons', 'cow-rings', 'paddocks-fill']}
         onClick={busyOnMap ? undefined : handleMapClick}
       >
         <PaddocksLayer paddocks={reshape ? paddocks.filter((p) => p.id !== reshape.id) : paddocks} selectedId={selectedPaddockId} />
         {draftRing && <DraftPaddockLayer ring={draftRing} />}
-        <CowsLayer cows={cows} />
+        <CowsLayer cows={cows} selectedId={selectedCollarId} />
         <ShiftLayer shifts={activeShifts} />
         <PaddockLabelsLayer selectedId={selectedPaddockId} />
         <DrawPaddock active={drawingPaddock} onFinish={handlePaddockDrawn} />
@@ -278,6 +296,17 @@ function App() {
         </div>
       )}
 
+      {selectedCollar && !busyOnMap && (
+        <CowPanel
+          collar={selectedCollar}
+          cow={cows.find((c) => c.collar_id === selectedCollar.id)}
+          paddock={paddocks.find((p) => p.id === selectedCollar.paddock_id)}
+          paddocks={paddocks}
+          onMove={startMovingCow}
+          onClose={closeCowPanel}
+        />
+      )}
+
       <MenuPanel>
         <FarmersSection
           farmers={farmers}
@@ -314,7 +343,7 @@ function App() {
             onMoveHerd={startDrawingPath}
           />
         )}
-        <CollarsSection collars={collars} cows={cows} paddocks={paddocks} canAdd={!!selectedFarmer} onAdd={addCollars} onDelete={removeCollars} onUnassign={unassignCollars} />
+        <CollarsSection collars={collars} cows={cows} paddocks={paddocks} canAdd={!!selectedFarmer} onAdd={addCollars} onDelete={removeCollars} onUnassign={unassignCollars} selectedId={selectedCollarId} onSelect={setSelectedCollarId} />
       </MenuPanel>
 
       <Toaster theme="light" position="top-center" />
