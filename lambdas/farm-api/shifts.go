@@ -46,6 +46,7 @@ type Shift struct {
 	WidthM        float64    `json:"width_m"         dynamodbav:"width_m"`
 	StartAt       string     `json:"start_at"        dynamodbav:"start_at"`
 	ExpiresAt     string     `json:"expires_at"      dynamodbav:"expires_at"`
+	SessionID     string     `json:"session_id,omitempty" dynamodbav:"session_id,omitempty"`
 }
 
 type shiftItem struct {
@@ -205,27 +206,10 @@ func createShift(ctx context.Context, farmerID, body string) (events.APIGatewayV
 		return respond(http.StatusConflict, errorBody(msg))
 	}
 
-	start := now.Add(shiftLeadTime)
-	walk := time.Duration(pathLengthM(in.Path.Coordinates) / shiftWalkMS * float64(time.Second))
-	s := Shift{
-		ID:            rand.Text(),
-		FarmerID:      farmerID,
-		FromPaddockID: in.FromPaddockID,
-		ToPaddockID:   in.ToPaddockID,
-		CollarIDs:     collarIDs,
-		Path:          in.Path,
-		WidthM:        in.WidthM,
-		StartAt:       start.Format(time.RFC3339),
-		ExpiresAt:     start.Add(walk + shiftGrace).Format(time.RFC3339),
-	}
-	item, err := attributevalue.MarshalMap(shiftItem{PK: "FARMER#" + farmerID, SK: "SHIFT#" + s.ID, Shift: s})
+	s := newShift(farmerID, in.FromPaddockID, in.ToPaddockID, collarIDs, in.Path, in.WidthM, now)
+	writes, err := shiftWrites(farmerID, s)
 	if err != nil {
 		return events.APIGatewayV2HTTPResponse{}, err
-	}
-
-	writes := []types.TransactWriteItem{{Put: &types.Put{TableName: aws.String(table), Item: item}}}
-	for _, id := range collarIDs {
-		writes = append(writes, moveCollar(farmerID, id, in.FromPaddockID, in.ToPaddockID))
 	}
 	_, err = db.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: writes})
 	var cancelled *types.TransactionCanceledException
@@ -236,6 +220,34 @@ func createShift(ctx context.Context, farmerID, body string) (events.APIGatewayV
 		return events.APIGatewayV2HTTPResponse{}, err
 	}
 	return respond(http.StatusCreated, s)
+}
+
+func newShift(farmerID, from, to string, collarIDs []string, path LineString, widthM float64, now time.Time) Shift {
+	start := now.Add(shiftLeadTime)
+	walk := time.Duration(pathLengthM(path.Coordinates) / shiftWalkMS * float64(time.Second))
+	return Shift{
+		ID:            rand.Text(),
+		FarmerID:      farmerID,
+		FromPaddockID: from,
+		ToPaddockID:   to,
+		CollarIDs:     collarIDs,
+		Path:          path,
+		WidthM:        widthM,
+		StartAt:       start.Format(time.RFC3339),
+		ExpiresAt:     start.Add(walk + shiftGrace).Format(time.RFC3339),
+	}
+}
+
+func shiftWrites(farmerID string, s Shift) ([]types.TransactWriteItem, error) {
+	item, err := attributevalue.MarshalMap(shiftItem{PK: "FARMER#" + farmerID, SK: "SHIFT#" + s.ID, Shift: s})
+	if err != nil {
+		return nil, err
+	}
+	writes := []types.TransactWriteItem{{Put: &types.Put{TableName: aws.String(table), Item: item}}}
+	for _, id := range s.CollarIDs {
+		writes = append(writes, moveCollar(farmerID, id, s.FromPaddockID, s.ToPaddockID))
+	}
+	return writes, nil
 }
 
 func turnBackShift(ctx context.Context, farmerID, shiftID string) (events.APIGatewayV2HTTPResponse, error) {
