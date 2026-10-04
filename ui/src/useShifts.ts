@@ -38,7 +38,7 @@ export function useShifts(farmerId: string | null) {
     }
   }, [farmerId])
 
-  const startShift = async (fromPaddockId: string, toPaddockId: string, path: LngLat[]): Promise<Shift> => {
+  const startShift = async (fromPaddockId: string, toPaddockId: string, path: LngLat[], collarIds?: string[]): Promise<Shift> => {
     if (!farmerId) throw new Error('no farmer selected')
     const res = await fetch(`${FARM_API_URL}/farmers/${encodeURIComponent(farmerId)}/shifts`, {
       method: 'POST',
@@ -47,6 +47,7 @@ export function useShifts(farmerId: string | null) {
         from_paddock_id: fromPaddockId,
         to_paddock_id: toPaddockId,
         path: { type: 'LineString', coordinates: path },
+        collar_ids: collarIds,
       }),
     })
     const body = await res.json()
