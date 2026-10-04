@@ -41,6 +41,7 @@ type WorldPaddock struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
 	FenceVersion int    `json:"fence_version"`
+	Kind         string `json:"kind"`
 	Polygon      struct {
 		Coordinates [][][2]float64 `json:"coordinates"`
 	} `json:"polygon"`
