@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BatteryFull, BatteryLow, BatteryMedium, Trash2 } from 'lucide-react'
+import { BatteryFull, BatteryLow, BatteryMedium, Footprints, Siren, Trash2, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -18,6 +18,12 @@ import type { Cow } from '@/useCows'
 import type { Paddock } from '@/usePaddocks'
 import { AddCollarsDialog } from './AddCollarsDialog'
 
+const STATUS: Record<string, { label: string; color: string; border: string; Icon: LucideIcon }> = {
+  moving: { label: 'Moving', color: 'bg-blue-500', border: 'border-blue-500', Icon: Footprints },
+  warning: { label: 'Near fence', color: 'bg-amber-500', border: 'border-amber-400', Icon: TriangleAlert },
+  breached: { label: 'Outside fence', color: 'bg-red-500', border: 'border-red-500', Icon: Siren },
+}
+
 type Props = {
   collars: Collar[]
   cows: Cow[]
@@ -26,9 +32,11 @@ type Props = {
   onAdd: (count: number) => Promise<void>
   onDelete: (collars: Collar[]) => Promise<void>
   onUnassign: (collars: Collar[]) => Promise<void>
+  selectedId: string | null
+  onSelect: (id: string) => void
 }
 
-export function CollarsSection({ collars, cows, paddocks, canAdd, onAdd, onDelete, onUnassign }: Props) {
+export function CollarsSection({ collars, cows, paddocks, canAdd, onAdd, onDelete, onUnassign, selectedId, onSelect }: Props) {
   const paddockName = (id: string | null) => paddocks.find((p) => p.id === id)?.name
   const cowOf = (c: Collar) => cows.find((w) => w.collar_id === c.id)
   const syncing = (c: Collar) => {
@@ -133,52 +141,70 @@ export function CollarsSection({ collars, cows, paddocks, canAdd, onAdd, onDelet
 
       {collars.length > 0 && (
         <ul className="grid grid-cols-2 gap-1.5">
-          {collars.map((c) => (
-            <li
-              key={c.id}
-              onClick={selecting ? () => toggle(c.id) : undefined}
-              className={`group relative overflow-hidden rounded-xl text-sm ${selecting ? 'cursor-pointer select-none' : ''} ${selected.has(c.id) ? 'bg-white ring-2 ring-primary/60' : 'bg-white/60'}`}
-            >
-              <img src="/cow-collar.webp" alt="" className="aspect-[4/3] w-full bg-white object-contain p-1" />
-              {c.paddock_id ? (
-                <span className="absolute top-2 left-2 flex size-2.5" title="Live">
-                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex size-2.5 rounded-full border border-white bg-emerald-500" />
-                </span>
-              ) : (
-                <span className="absolute top-2 left-2 size-2.5 rounded-full border border-white bg-zinc-400" title="Inactive" />
-              )}
-              <div className="px-2 py-1.5 leading-tight">
-                <div className="flex items-center justify-between gap-1">
-                  <p className="min-w-0 truncate font-medium">{c.name}</p>
-                  <BatteryLevel level={cowOf(c)?.battery} />
+          {collars.map((c) => {
+            const cow = cowOf(c)
+            const status = cow && STATUS[cow.state]
+            return (
+              <li
+                key={c.id}
+                onClick={() => (selecting ? toggle(c.id) : onSelect(c.id))}
+                className={`group relative cursor-pointer overflow-hidden rounded-xl border-2 text-sm select-none ${status ? status.border : 'border-transparent'} ${(selecting ? selected.has(c.id) : selectedId === c.id) ? 'bg-white ring-2 ring-primary/60' : 'bg-white/60'}`}
+              >
+                <div className="relative">
+                  <img src="/cow-collar.webp" alt="" className="aspect-[4/3] w-full bg-white object-contain p-1" />
+                  {status && (
+                    <span
+                      title={cow?.level === 'none' ? status.label : `${status.label} · ${cow?.level} cue`}
+                      className={`absolute bottom-1 left-1 flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium text-white ${status.color} ${cow?.level === 'none' ? '' : 'animate-pulse'}`}
+                    >
+                      <status.Icon className="size-3" />
+                      {status.label}
+                    </span>
+                  )}
                 </div>
-                <p className="truncate text-xs text-muted-foreground">
-                  {paddockName(c.paddock_id) ?? 'Unassigned'}
-                  {syncing(c) && <span className="text-amber-700"> · syncing</span>}
-                </p>
-              </div>
-              {selecting ? (
-                <Checkbox
-                  className="absolute top-1.5 right-1.5 bg-white"
-                  checked={selected.has(c.id)}
-                  onClick={(e) => e.stopPropagation()}
-                  onCheckedChange={() => toggle(c.id)}
-                  aria-label={`Select ${c.name}`}
-                />
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  className="absolute top-1 right-1 cursor-pointer bg-white/80 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive focus-visible:opacity-100"
-                  onClick={() => askDelete([c])}
-                  aria-label={`Delete ${c.name}`}
-                >
-                  <Trash2 />
-                </Button>
-              )}
-            </li>
-          ))}
+                {c.paddock_id ? (
+                  <span className="absolute top-2 left-2 flex size-2.5" title="Live">
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex size-2.5 rounded-full border border-white bg-emerald-500" />
+                  </span>
+                ) : (
+                  <span className="absolute top-2 left-2 size-2.5 rounded-full border border-white bg-zinc-400" title="Inactive" />
+                )}
+                <div className="px-2 py-1.5 leading-tight">
+                  <div className="flex items-center justify-between gap-1">
+                    <p className="min-w-0 truncate font-medium">{c.name}</p>
+                    <BatteryLevel level={cow?.battery} />
+                  </div>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {paddockName(c.paddock_id) ?? 'Unassigned'}
+                    {syncing(c) && <span className="text-amber-700"> · syncing</span>}
+                  </p>
+                </div>
+                {selecting ? (
+                  <Checkbox
+                    className="absolute top-1.5 right-1.5 bg-white"
+                    checked={selected.has(c.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onCheckedChange={() => toggle(c.id)}
+                    aria-label={`Select ${c.name}`}
+                  />
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="absolute top-1 right-1 cursor-pointer bg-white/80 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive focus-visible:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      askDelete([c])
+                    }}
+                    aria-label={`Delete ${c.name}`}
+                  >
+                    <Trash2 />
+                  </Button>
+                )}
+              </li>
+            )
+          })}
         </ul>
       )}
 
@@ -226,7 +252,7 @@ export function CollarsSection({ collars, cows, paddocks, canAdd, onAdd, onDelet
   )
 }
 
-function BatteryLevel({ level }: { level?: number }) {
+export function BatteryLevel({ level }: { level?: number }) {
   if (level === undefined) return null
   const Icon = level >= 75 ? BatteryFull : level >= 40 ? BatteryMedium : BatteryLow
   return (
