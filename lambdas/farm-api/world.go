@@ -19,6 +19,7 @@ type WorldPaddock struct {
 	Name         string  `json:"name"          dynamodbav:"name"`
 	Polygon      Polygon `json:"polygon"       dynamodbav:"polygon"`
 	FenceVersion int     `json:"fence_version" dynamodbav:"fence_version"`
+	Kind         string  `json:"kind"          dynamodbav:"kind"`
 }
 
 type WorldCollar struct {
