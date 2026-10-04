@@ -26,6 +26,7 @@ type Tower struct {
 	collars  map[string]*Collar
 	order    []*Collar
 	pending  map[string]fenceUpdate
+	sheds    map[string]bool
 	rng      *rand.Rand
 }
 
@@ -51,7 +52,11 @@ func (t *Tower) Reconcile(f WorldFarm) ReconcileResult {
 
 	fences := make(map[string]Polygon, len(f.Paddocks))
 	versions := make(map[string]int, len(f.Paddocks))
+	t.sheds = map[string]bool{}
 	for _, p := range f.Paddocks {
+		if p.Kind == "milking_shed" {
+			t.sheds[p.ID] = true
+		}
 		if len(p.Polygon.Coordinates) == 0 {
 			continue
 		}
@@ -130,6 +135,10 @@ func (t *Tower) Tick(now time.Time, emit func(Event)) {
 	}
 
 	for _, col := range t.order {
+		col.cow.Speed = walkSpeed
+		if col.shift == nil && t.sheds[col.PaddockID] {
+			col.cow.Speed = 0
+		}
 		col.Step(now, 1)
 		t.seq++
 		emit(Event{
