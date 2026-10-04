@@ -57,6 +57,7 @@ type WorldShift struct {
 	ID            string    `json:"id"`
 	FromPaddockID string    `json:"from_paddock_id"`
 	ToPaddockID   string    `json:"to_paddock_id"`
+	CollarIDs     []string  `json:"collar_ids"`
 	StartAt       time.Time `json:"start_at"`
 	Path          *struct {
 		Coordinates [][2]float64 `json:"coordinates"`
