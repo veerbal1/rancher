@@ -79,6 +79,12 @@ func handle(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.API
 		return createShift(ctx, req.PathParameters["id"], req.Body)
 	case "GET /farmers/{id}/shifts":
 		return listShifts(ctx, req.PathParameters["id"])
+	case "POST /farmers/{id}/milking-sessions":
+		return startMilking(ctx, req.PathParameters["id"], req.Body)
+	case "GET /farmers/{id}/milking-sessions":
+		return listMilkingSessions(ctx, req.PathParameters["id"])
+	case "POST /farmers/{id}/milking-sessions/{sessionId}/stop":
+		return stopMilking(ctx, req.PathParameters["id"], req.PathParameters["sessionId"])
 	case "POST /farmers/{id}/lanes":
 		return saveLane(ctx, req.PathParameters["id"], req.Body)
 	case "GET /farmers/{id}/lanes":
