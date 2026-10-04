@@ -130,6 +130,19 @@ func createShift(ctx context.Context, farmerID, body string) (events.APIGatewayV
 	if in.FromPaddockID == "" || in.ToPaddockID == "" || in.FromPaddockID == in.ToPaddockID {
 		return respond(http.StatusBadRequest, errorBody("from_paddock_id and to_paddock_id must be two different paddocks"))
 	}
+	if len(in.Path.Coordinates) == 0 {
+		lane, err := findLane(ctx, farmerID, in.FromPaddockID, in.ToPaddockID)
+		if err != nil {
+			return events.APIGatewayV2HTTPResponse{}, err
+		}
+		if lane == nil {
+			return respond(http.StatusBadRequest, errorBody("draw a lane between these paddocks first"))
+		}
+		in.Path = lane.Path
+		if in.WidthM == 0 {
+			in.WidthM = lane.WidthM
+		}
+	}
 	if in.WidthM == 0 {
 		in.WidthM = defaultLaneWidthM
 	}
@@ -253,10 +266,7 @@ func turnBackShift(ctx context.Context, farmerID, shiftID string) (events.APIGat
 	if nowStr < old.StartAt {
 		writes = append(writes, types.TransactWriteItem{Delete: &types.Delete{TableName: aws.String(table), Key: shiftKey(farmerID, shiftID)}})
 	} else {
-		reversed := make([][]float64, len(old.Path.Coordinates))
-		for i, pt := range old.Path.Coordinates {
-			reversed[len(reversed)-1-i] = pt
-		}
+		reversed := reversePath(old.Path.Coordinates)
 		walk := time.Duration(pathLengthM(reversed) / shiftWalkMS * float64(time.Second))
 		back = &Shift{
 			ID:            rand.Text(),
