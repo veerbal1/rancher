@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { TriangleAlert } from 'lucide-react'
+import { Milk, TriangleAlert, Warehouse } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Paddock } from '@/usePaddocks'
 import type { Overlap } from '@/map/overlap'
@@ -107,7 +107,11 @@ export function PaddocksSection({
                   p.id === selectedId ? 'bg-primary/10 ring-1 ring-primary' : 'bg-white/60 hover:bg-white/80'
                 }`}
               >
-                <span>{p.name}</span>
+                <span className="flex items-center gap-1.5">
+                  {p.kind === 'milking_shed' && <Milk className="size-3.5 text-muted-foreground" />}
+                  {p.kind === 'rest_shed' && <Warehouse className="size-3.5 text-muted-foreground" />}
+                  {p.name}
+                </span>
                 <span className="text-muted-foreground">{p.area_ha} ha</span>
               </button>
             </li>
