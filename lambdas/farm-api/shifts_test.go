@@ -30,3 +30,32 @@ func TestShiftRunningUntilItsCowsStopMoving(t *testing.T) {
 		}
 	}
 }
+
+func TestMoveIsBlockedOnlyByItsOwnCows(t *testing.T) {
+	start := time.Date(2026, 10, 5, 5, 0, 0, 0, time.UTC)
+	walking := Shift{
+		FromPaddockID: "A",
+		ToPaddockID:   "Shed",
+		CollarIDs:     []string{"C1"},
+		StartAt:       start.Format(time.RFC3339),
+		ExpiresAt:     start.Add(10 * time.Minute).Format(time.RFC3339),
+	}
+	now := start.Add(time.Minute)
+
+	tests := []struct {
+		name    string
+		collars []string
+		moving  map[string]bool
+		want    int
+	}{
+		{"next cow out of the same paddock", []string{"C2"}, map[string]bool{"C1": true}, 0},
+		{"the cow still walking", []string{"C1"}, map[string]bool{"C1": true}, 1},
+		{"a herd that includes her", []string{"C1", "C2", "C3"}, map[string]bool{"C1": true}, 1},
+		{"she has arrived", []string{"C1"}, nil, 0},
+	}
+	for _, tt := range tests {
+		if got := busyCollars([]Shift{walking}, tt.collars, now, tt.moving); got != tt.want {
+			t.Errorf("%s: %d busy cows, want %d", tt.name, got, tt.want)
+		}
+	}
+}
