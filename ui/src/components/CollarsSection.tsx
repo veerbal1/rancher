@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BatteryFull, BatteryLow, BatteryMedium, Footprints, Siren, Trash2, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { BatteryFull, BatteryLow, BatteryMedium, CircleAlert, Clock, Footprints, Milk, Siren, Trash2, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -16,12 +16,36 @@ import {
 import type { Collar } from '@/useCollars'
 import type { Cow } from '@/useCows'
 import type { Paddock } from '@/usePaddocks'
+import type { MilkingSession, SessionCow } from '@/useMilking'
 import { AddCollarsDialog } from './AddCollarsDialog'
 
-const STATUS: Record<string, { label: string; color: string; border: string; Icon: LucideIcon }> = {
+type CardStatus = { label: string; color: string; border: string; Icon: LucideIcon }
+
+const STATUS: Record<string, CardStatus> = {
   moving: { label: 'Moving', color: 'bg-blue-500', border: 'border-blue-500', Icon: Footprints },
   warning: { label: 'Near fence', color: 'bg-amber-500', border: 'border-amber-400', Icon: TriangleAlert },
   breached: { label: 'Outside fence', color: 'bg-red-500', border: 'border-red-500', Icon: Siren },
+}
+
+const MILKING: Partial<Record<SessionCow['status'], CardStatus>> = {
+  waiting: { label: 'Waiting to milk', color: 'bg-zinc-500', border: 'border-transparent', Icon: Clock },
+  called: { label: 'Walking to shed', color: 'bg-blue-500', border: 'border-blue-500', Icon: Footprints },
+  milking: { label: 'Milking', color: 'bg-teal-600', border: 'border-teal-500', Icon: Milk },
+  missed: { label: 'Missed milking', color: 'bg-amber-600', border: 'border-amber-400', Icon: CircleAlert },
+}
+
+function timeLeft(from: string | undefined, secs: number) {
+  const left = from ? Math.max(0, Math.ceil((secs * 1000 - (Date.now() - Date.parse(from))) / 1000)) : secs
+  return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`
+}
+
+function cardStatus(cow: Cow | undefined, milkingCow: SessionCow | undefined, milkingSecs: number): CardStatus | undefined {
+  if (cow?.state === 'warning' || cow?.state === 'breached') return STATUS[cow.state]
+  if (milkingCow) {
+    const milk = MILKING[milkingCow.status]
+    if (milk) return milkingCow.status === 'milking' ? { ...milk, label: `Milking ${timeLeft(milkingCow.milking_from, milkingSecs)}` } : milk
+  }
+  return cow && STATUS[cow.state]
 }
 
 type Props = {
@@ -34,9 +58,10 @@ type Props = {
   onUnassign: (collars: Collar[]) => Promise<void>
   selectedId: string | null
   onSelect: (id: string) => void
+  milking?: MilkingSession
 }
 
-export function CollarsSection({ collars, cows, paddocks, canAdd, onAdd, onDelete, onUnassign, selectedId, onSelect }: Props) {
+export function CollarsSection({ collars, cows, paddocks, canAdd, onAdd, onDelete, onUnassign, selectedId, onSelect, milking }: Props) {
   const paddockName = (id: string | null) => paddocks.find((p) => p.id === id)?.name
   const cowOf = (c: Collar) => cows.find((w) => w.collar_id === c.id)
   const syncing = (c: Collar) => {
@@ -143,7 +168,7 @@ export function CollarsSection({ collars, cows, paddocks, canAdd, onAdd, onDelet
         <ul className="grid grid-cols-2 gap-1.5">
           {collars.map((c) => {
             const cow = cowOf(c)
-            const status = cow && STATUS[cow.state]
+            const status = cardStatus(cow, milking?.cows.find((m) => m.collar_id === c.id), milking?.milking_secs ?? 0)
             return (
               <li
                 key={c.id}
