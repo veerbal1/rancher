@@ -50,6 +50,10 @@ func main() {
 		log.Fatalf("aws config: %v", err)
 	}
 	db = dynamodb.NewFromConfig(cfg)
+	if os.Getenv("MODE") == "milking" {
+		lambda.Start(runMilking)
+		return
+	}
 	lambda.Start(handle)
 }
 
@@ -79,6 +83,10 @@ func handle(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.API
 		return createShift(ctx, req.PathParameters["id"], req.Body)
 	case "GET /farmers/{id}/shifts":
 		return listShifts(ctx, req.PathParameters["id"])
+	case "GET /farmers/{id}/milking-schedule":
+		return getMilkingSchedule(ctx, req.PathParameters["id"])
+	case "PUT /farmers/{id}/milking-schedule":
+		return saveMilkingSchedule(ctx, req.PathParameters["id"], req.Body)
 	case "POST /farmers/{id}/milking-sessions":
 		return startMilking(ctx, req.PathParameters["id"], req.Body)
 	case "GET /farmers/{id}/milking-sessions":
