@@ -5,6 +5,7 @@ import type { Collar } from '@/useCollars'
 import type { Cow } from '@/useCows'
 import type { Paddock } from '@/usePaddocks'
 import type { Lane } from '@/useLanes'
+import type { MilkingSession, SessionCow } from '@/useMilking'
 import { BatteryLevel } from './CollarsSection'
 import { MoveHerdDialog } from './MoveHerdDialog'
 
@@ -14,8 +15,17 @@ type Props = {
   paddock?: Paddock
   paddocks: Paddock[]
   lanes: Lane[]
+  milking?: MilkingSession
   onMove: (toPaddockId: string, useSavedLane: boolean) => void
   onClose: () => void
+}
+
+const MILKING_TEXT: Record<SessionCow['status'], string> = {
+  waiting: 'Waiting her turn',
+  called: 'Walking to the shed',
+  milking: 'In the shed',
+  done: 'Milked',
+  missed: 'Missed',
 }
 
 const STATE_COLORS: Record<string, string> = {
@@ -25,7 +35,9 @@ const STATE_COLORS: Record<string, string> = {
   moving: 'bg-blue-500',
 }
 
-export function CowPanel({ collar, cow, paddock, paddocks, lanes, onMove, onClose }: Props) {
+export function CowPanel({ collar, cow, paddock, paddocks, lanes, milking, onMove, onClose }: Props) {
+  const milkingCow = milking?.cows.find((c) => c.collar_id === collar.id)
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -74,6 +86,12 @@ export function CowPanel({ collar, cow, paddock, paddocks, lanes, onMove, onClos
             <>
               <dt className="text-muted-foreground">Fence</dt>
               <dd className="text-right">v{cow.fence_version ?? 0}</dd>
+            </>
+          )}
+          {milkingCow && (
+            <>
+              <dt className="text-muted-foreground">Milking</dt>
+              <dd className="text-right">{MILKING_TEXT[milkingCow.status]}</dd>
             </>
           )}
         </dl>
