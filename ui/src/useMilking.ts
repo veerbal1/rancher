@@ -19,10 +19,22 @@ export type MilkingSession = {
   capacity: number
   milking_secs: number
   status: 'running' | 'stopped' | 'done'
+  slot?: 'morning' | 'evening'
   in_shed: number
   started_at: string
   ended_at?: string
   cows: SessionCow[]
+}
+
+export type MilkingSchedule = {
+  enabled: boolean
+  timezone: string
+  morning_at: string
+  evening_at: string
+  rest_shed_id: string
+  shed_id: string
+  paddock_id: string
+  updated_at?: string
 }
 
 const FARM_API_URL = import.meta.env.VITE_FARM_API_URL
@@ -30,6 +42,7 @@ const REFRESH_MS = 5000
 
 export function useMilking(farmerId: string | null) {
   const [sessions, setSessions] = useState<MilkingSession[]>([])
+  const [schedule, setSchedule] = useState<MilkingSchedule | null>(null)
   const [error, setError] = useState('')
 
   const load = useCallback(async () => {
@@ -41,6 +54,22 @@ export function useMilking(farmerId: string | null) {
       setError('')
     } catch (e) {
       setError(String(e))
+    }
+  }, [farmerId])
+
+  useEffect(() => {
+    setSchedule(null)
+    if (!farmerId) return
+    let cancelled = false
+    fetch(`${FARM_API_URL}/farmers/${encodeURIComponent(farmerId)}/milking-schedule`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = await res.json()
+        if (!cancelled) setSchedule(data)
+      })
+      .catch((e) => !cancelled && setError(String(e)))
+    return () => {
+      cancelled = true
     }
   }, [farmerId])
 
@@ -76,5 +105,17 @@ export function useMilking(farmerId: string | null) {
     setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, status: body.status, ended_at: body.ended_at } : s)))
   }
 
-  return { sessions, error, startMilking, stopMilking }
+  const saveSchedule = async (next: MilkingSchedule) => {
+    if (!farmerId) throw new Error('no farmer selected')
+    const res = await fetch(`${FARM_API_URL}/farmers/${encodeURIComponent(farmerId)}/milking-schedule`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(next),
+    })
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`)
+    setSchedule(body)
+  }
+
+  return { sessions, schedule, error, startMilking, stopMilking, saveSchedule }
 }
