@@ -446,7 +446,7 @@ Code: [`edge/tower.go`](edge/tower.go) (`Reconcile` and `Tick`), [`lambdas/farm-
   <img src="docs/running.svg" alt="A timeline of a 500 m move whose expiry is at 13.4 minutes, in three scenarios. In a normal move the collars report moving until the cows arrive at 7.8 minutes, and the move stops running then. If no collar ever reports moving, the move stops running after the first 30 seconds. If one cow keeps walking, the move keeps running until it is capped at the expiry.">
 </picture>
 
-A running move blocks new moves on its two paddocks, so you can't send a herd into a paddock another herd is still walking out of. Knowing whether a move is still running is harder than it looks, because its state lives in two places: the plan in the farm table, and the truth in the collars' telemetry, which arrives seconds later.
+A running move blocks new moves for its own cows, so a cow can't be sent somewhere else while she's still walking. Other cows in the same paddocks can still move. Knowing whether a move is still running is harder than it looks, because its state lives in two places: the plan in the farm table, and the truth in the collars' telemetry, which arrives seconds later.
 
 ```math
 \text{running}(t) = t < t_{\text{expire}} \ \wedge\ \left( t < t_{\text{start}} + 30 \text{ s} \ \vee\ \exists\, c : \text{moving}_c(t) \right)
@@ -469,7 +469,7 @@ Each part has a job:
 
 `TestShiftRunningUntilItsCowsStopMoving` covers four cases: just started with no readings yet, cows still walking, cows arrived before the expiry, and expired even though a reading still says `moving`.
 
-Code: [`lambdas/farm-api/shifts.go`](lambdas/farm-api/shifts.go) (`running`, `movingCollars` and `createShift`) and [`ui/src/useShifts.ts`](ui/src/useShifts.ts) (`useActiveShifts`)
+Code: [`lambdas/farm-api/shifts.go`](lambdas/farm-api/shifts.go) (`running`, `busyCollars`, `movingCollars` and `createShift`) and [`ui/src/useShifts.ts`](ui/src/useShifts.ts) (`useActiveShifts`)
 
 ### WebSocket fan-out
 
