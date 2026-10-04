@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import type { Collar } from '@/useCollars'
 import type { Cow } from '@/useCows'
 import type { Paddock } from '@/usePaddocks'
+import type { Lane } from '@/useLanes'
 import { BatteryLevel } from './CollarsSection'
 import { MoveHerdDialog } from './MoveHerdDialog'
 
@@ -12,7 +13,8 @@ type Props = {
   cow?: Cow
   paddock?: Paddock
   paddocks: Paddock[]
-  onMove: (toPaddockId: string) => void
+  lanes: Lane[]
+  onMove: (toPaddockId: string, useSavedLane: boolean) => void
   onClose: () => void
 }
 
@@ -23,7 +25,7 @@ const STATE_COLORS: Record<string, string> = {
   moving: 'bg-blue-500',
 }
 
-export function CowPanel({ collar, cow, paddock, paddocks, onMove, onClose }: Props) {
+export function CowPanel({ collar, cow, paddock, paddocks, lanes, onMove, onClose }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -84,6 +86,7 @@ export function CowPanel({ collar, cow, paddock, paddocks, onMove, onClose }: Pr
               cowCount={1}
               cowName={collar.name}
               disabled={cow?.state === 'moving'}
+              lanes={lanes}
               onPick={onMove}
             />
           ) : (
