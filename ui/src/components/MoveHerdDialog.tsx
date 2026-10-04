@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Paddock } from '@/usePaddocks'
+import { laneBetween, type Lane } from '@/useLanes'
 
 type Props = {
   paddock: Paddock
@@ -20,10 +21,11 @@ type Props = {
   cowCount: number
   cowName?: string
   disabled?: boolean
-  onPick: (toPaddockId: string) => void
+  lanes: Lane[]
+  onPick: (toPaddockId: string, useSavedLane: boolean) => void
 }
 
-export function MoveHerdDialog({ paddock, paddocks, cowCount, cowName, disabled, onPick }: Props) {
+export function MoveHerdDialog({ paddock, paddocks, cowCount, cowName, disabled, lanes, onPick }: Props) {
   const [open, setOpen] = useState(false)
   const [toId, setToId] = useState<string | null>(null)
 
@@ -34,10 +36,12 @@ export function MoveHerdDialog({ paddock, paddocks, cowCount, cowName, disabled,
     if (next) setToId(null)
   }
 
-  const pick = () => {
+  const saved = !!toId && !!laneBetween(lanes, paddock.id, toId)
+
+  const pick = (useSavedLane: boolean) => {
     if (!toId) return
     setOpen(false)
-    onPick(toId)
+    onPick(toId, useSavedLane)
   }
 
   return (
@@ -84,9 +88,20 @@ export function MoveHerdDialog({ paddock, paddocks, cowCount, cowName, disabled,
 
         <DialogFooter>
           <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
-          <Button className="cursor-pointer" disabled={!toId} onClick={pick}>
-            Draw path
-          </Button>
+          {saved ? (
+            <>
+              <Button variant="outline" className="cursor-pointer" onClick={() => pick(false)}>
+                Draw new path
+              </Button>
+              <Button className="cursor-pointer" onClick={() => pick(true)}>
+                Use saved lane
+              </Button>
+            </>
+          ) : (
+            <Button className="cursor-pointer" disabled={!toId} onClick={() => pick(false)}>
+              Draw path
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
