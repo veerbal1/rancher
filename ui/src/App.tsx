@@ -16,7 +16,7 @@ import { toLngLat, type LngLat } from './map/geo'
 import { findOverlaps } from './map/overlap'
 import { useCows } from './useCows'
 import { useFarmers, type Location } from './useFarmers'
-import { usePaddocks } from './usePaddocks'
+import { KINDS, usePaddocks, type PaddockKind } from './usePaddocks'
 import { useCollars, type Collar } from './useCollars'
 import { useActiveShifts, useShifts, type Shift } from './useShifts'
 import { useCueSound } from './useCueSound'
@@ -111,6 +111,16 @@ function App() {
     if (!selectedPaddock) return
     const paddock = await updatePaddock(selectedPaddock.id, { name })
     toast.success(`Renamed to ${paddock.name}`)
+  }
+
+  const changeSelectedPaddockKind = async (kind: PaddockKind) => {
+    if (!selectedPaddock) return
+    try {
+      const paddock = await updatePaddock(selectedPaddock.id, { kind })
+      toast.success(`${paddock.name} is now a ${KINDS.find((k) => k.value === kind)?.label.toLowerCase()}`)
+    } catch (err) {
+      toast.error('Could not change the kind', { description: err instanceof Error ? err.message : String(err) })
+    }
   }
 
   const startReshape = () => {
@@ -244,7 +254,7 @@ function App() {
 
       <SatelliteMap
         initialBounds={INITIAL_BOUNDS}
-        interactiveLayerIds={busyOnMap ? [] : ['cow-icons', 'cow-rings', 'paddocks-fill']}
+        interactiveLayerIds={busyOnMap ? [] : ['cow-icons', 'cow-rings', 'paddocks-fill', 'sheds-fill']}
         onClick={busyOnMap ? undefined : handleMapClick}
       >
         <PaddocksLayer paddocks={reshape ? paddocks.filter((p) => p.id !== reshape.id) : paddocks} selectedId={selectedPaddockId} />
@@ -337,6 +347,7 @@ function App() {
             cows={cows}
             paddocks={paddocks}
             onRename={renameSelectedPaddock}
+            onChangeKind={changeSelectedPaddockKind}
             onEditBoundary={startReshape}
             onDelete={deleteSelectedPaddock}
             onAssignCollars={saveCollarAssignment}
