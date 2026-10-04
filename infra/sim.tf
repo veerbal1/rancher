@@ -4,10 +4,10 @@ resource "aws_s3_bucket" "sim" {
 }
 
 resource "aws_s3_object" "sim" {
-  bucket = aws_s3_bucket.sim.id
-  key    = "sim"
-  source = "${path.module}/../build/sim"
-  etag   = filemd5("${path.module}/../build/sim")
+  bucket      = aws_s3_bucket.sim.id
+  key         = "sim"
+  source      = "${path.module}/../build/sim"
+  source_hash = filemd5("${path.module}/../build/sim")
 }
 
 resource "aws_iam_role" "sim" {
@@ -90,7 +90,7 @@ resource "aws_instance" "sim" {
 
   user_data = <<-EOF
     #!/bin/bash
-    # sim ${aws_s3_object.sim.etag}
+    # sim ${aws_s3_object.sim.source_hash}
     aws s3 cp s3://${aws_s3_bucket.sim.id}/sim /usr/local/bin/sim
     chmod +x /usr/local/bin/sim
     cat > /etc/systemd/system/sim.service <<UNIT
