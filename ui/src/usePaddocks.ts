@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react'
 import type { LngLat } from './map/geo'
 
+export type PaddockKind = 'paddock' | 'milking_shed' | 'rest_shed'
+
+export const KINDS: { value: PaddockKind; label: string }[] = [
+  { value: 'paddock', label: 'Paddock' },
+  { value: 'milking_shed', label: 'Milking shed' },
+  { value: 'rest_shed', label: 'Rest shed' },
+]
+
 export type Paddock = {
   id: string
   farmer_id: string
@@ -8,6 +16,8 @@ export type Paddock = {
   polygon: { type: 'Polygon'; coordinates: LngLat[][] }
   area_ha: number
   fence_version?: number
+  kind?: PaddockKind
+  capacity?: number
   created_at: string
 }
 
@@ -60,7 +70,7 @@ export function usePaddocks(farmerId: string | null) {
     setPaddocks((prev) => prev.filter((p) => p.id !== id))
   }
 
-  const updatePaddock = async (id: string, patch: { name?: string; ring?: LngLat[] }): Promise<Paddock> => {
+  const updatePaddock = async (id: string, patch: { name?: string; ring?: LngLat[]; kind?: PaddockKind }): Promise<Paddock> => {
     if (!farmerId) throw new Error('no farmer selected')
     const res = await fetch(
       `${FARM_API_URL}/farmers/${encodeURIComponent(farmerId)}/paddocks/${encodeURIComponent(id)}`,
@@ -70,6 +80,7 @@ export function usePaddocks(farmerId: string | null) {
         body: JSON.stringify({
           name: patch.name,
           polygon: patch.ring ? { type: 'Polygon', coordinates: [patch.ring] } : undefined,
+          kind: patch.kind,
         }),
       },
     )
