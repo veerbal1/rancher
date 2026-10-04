@@ -72,6 +72,24 @@ func (s Shift) running(now time.Time, moving map[string]bool) bool {
 	return false
 }
 
+func busyCollars(shifts []Shift, collarIDs []string, now time.Time, moving map[string]bool) int {
+	busy := map[string]bool{}
+	for _, s := range shifts {
+		if s.running(now, moving) {
+			for _, id := range s.CollarIDs {
+				busy[id] = true
+			}
+		}
+	}
+	n := 0
+	for _, id := range collarIDs {
+		if busy[id] {
+			n++
+		}
+	}
+	return n
+}
+
 func movingCollars(ctx context.Context, farmerID string, now time.Time) (map[string]bool, error) {
 	moving := map[string]bool{}
 	pages := dynamodb.NewQueryPaginator(db, &dynamodb.QueryInput{
@@ -141,6 +159,20 @@ func createShift(ctx context.Context, farmerID, body string) (events.APIGatewayV
 		return respond(http.StatusBadRequest, errorBody(msg))
 	}
 
+	collarIDs := in.CollarIDs
+	if len(collarIDs) == 0 {
+		var err error
+		if collarIDs, err = collarIDsInPaddock(ctx, farmerID, in.FromPaddockID); err != nil {
+			return events.APIGatewayV2HTTPResponse{}, err
+		}
+	}
+	if len(collarIDs) == 0 {
+		return respond(http.StatusBadRequest, errorBody("no collars in that paddock"))
+	}
+	if len(collarIDs) > maxCollarsPerShift {
+		return respond(http.StatusBadRequest, errorBody(fmt.Sprintf("a shift can move at most %d collars", maxCollarsPerShift)))
+	}
+
 	now := time.Now().UTC()
 	shifts, err := queryShifts(ctx, farmerID, now)
 	if err != nil {
@@ -152,28 +184,12 @@ func createShift(ctx context.Context, farmerID, body string) (events.APIGatewayV
 			return events.APIGatewayV2HTTPResponse{}, err
 		}
 	}
-	for _, s := range shifts {
-		if !s.running(now, moving) {
-			continue
+	if n := busyCollars(shifts, collarIDs, now, moving); n > 0 {
+		msg := "a cow in this move is still walking another move"
+		if n > 1 {
+			msg = fmt.Sprintf("%d cows in this move are still walking another move", n)
 		}
-		for _, id := range []string{s.FromPaddockID, s.ToPaddockID} {
-			if id == in.FromPaddockID || id == in.ToPaddockID {
-				return respond(http.StatusConflict, errorBody("a shift is already running for one of these paddocks"))
-			}
-		}
-	}
-
-	collarIDs := in.CollarIDs
-	if len(collarIDs) == 0 {
-		if collarIDs, err = collarIDsInPaddock(ctx, farmerID, in.FromPaddockID); err != nil {
-			return events.APIGatewayV2HTTPResponse{}, err
-		}
-	}
-	if len(collarIDs) == 0 {
-		return respond(http.StatusBadRequest, errorBody("no collars in that paddock"))
-	}
-	if len(collarIDs) > maxCollarsPerShift {
-		return respond(http.StatusBadRequest, errorBody(fmt.Sprintf("a shift can move at most %d collars", maxCollarsPerShift)))
+		return respond(http.StatusConflict, errorBody(msg))
 	}
 
 	start := now.Add(shiftLeadTime)
