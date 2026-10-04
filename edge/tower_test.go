@@ -154,3 +154,36 @@ func TestFenceUpdateReachesEveryCollarDespiteLoss(t *testing.T) {
 	}
 	t.Logf("%d/20 after the first tick, all 20 after %d ticks", afterFirst, ticks-1)
 }
+
+func TestCowsStandStillInTheMilkingShed(t *testing.T) {
+	shed := worldPaddock("S", squareAt(0, 0, 100))
+	shed.Kind = "milking_shed"
+	field := worldPaddock("A", squareAt(300, 0, 100))
+	tower := NewTower("F1")
+	tower.Reconcile(farm([]WorldPaddock{shed, field}, worldCollar("milking", 1, "S"), worldCollar("grazing", 2, "A")))
+
+	now := time.Date(2026, 10, 5, 5, 0, 0, 0, time.UTC)
+	walkedM := func(id string, secs int) float64 {
+		col := tower.collars[id]
+		start := Point{Lng: col.cow.Lng, Lat: col.cow.Lat}
+		for i := 0; i < secs; i++ {
+			now = now.Add(time.Second)
+			tower.Tick(now, func(Event) {})
+		}
+		return distanceM(start, Point{Lng: col.cow.Lng, Lat: col.cow.Lat})
+	}
+
+	if d := walkedM("milking", 30); d > 0 {
+		t.Errorf("cow in the milking shed walked %.1f m", d)
+	}
+	if d := walkedM("grazing", 30); d < 5 {
+		t.Errorf("cow in a paddock walked only %.1f m in 30 s", d)
+	}
+
+	leaving := farm([]WorldPaddock{shed, field}, worldCollar("milking", 1, "A"), worldCollar("grazing", 2, "A"))
+	leaving.Shifts = []WorldShift{{ID: "out", FromPaddockID: "S", ToPaddockID: "A", CollarIDs: []string{"milking"}, StartAt: now}}
+	tower.Reconcile(leaving)
+	if d := walkedM("milking", 30); d < 5 {
+		t.Errorf("cow sent out of the shed walked only %.1f m in 30 s", d)
+	}
+}
