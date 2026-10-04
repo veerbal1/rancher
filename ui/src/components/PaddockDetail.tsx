@@ -13,7 +13,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import type { Paddock } from '@/usePaddocks'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { KINDS, type Paddock, type PaddockKind } from '@/usePaddocks'
 import type { Collar } from '@/useCollars'
 import type { Cow } from '@/useCows'
 import { AssignCollarsDialog } from './AssignCollarsDialog'
@@ -25,13 +26,14 @@ type Props = {
   cows: Cow[]
   paddocks: Paddock[]
   onRename: (name: string) => Promise<void>
+  onChangeKind: (kind: PaddockKind) => Promise<void>
   onEditBoundary: () => void
   onDelete: () => Promise<void>
   onAssignCollars: (add: string[], remove: string[]) => Promise<void>
   onMoveHerd: (toPaddockId: string) => void
 }
 
-export function PaddockDetail({ paddock, collars, cows, paddocks, onRename, onEditBoundary, onDelete, onAssignCollars, onMoveHerd }: Props) {
+export function PaddockDetail({ paddock, collars, cows, paddocks, onRename, onChangeKind, onEditBoundary, onDelete, onAssignCollars, onMoveHerd }: Props) {
   const collarCount = collars.filter((c) => c.paddock_id === paddock.id).length
   const version = paddock.fence_version ?? 0
   const here = new Set(collars.filter((c) => c.paddock_id === paddock.id).map((c) => c.id))
@@ -43,6 +45,19 @@ export function PaddockDetail({ paddock, collars, cows, paddocks, onRename, onEd
   const [name, setName] = useState(paddock.name)
   const [renaming, setRenaming] = useState(false)
   const [renameError, setRenameError] = useState('')
+
+  const [savingKind, setSavingKind] = useState(false)
+  const kind = paddock.kind ?? 'paddock'
+
+  const changeKind = async (next: PaddockKind) => {
+    if (next === kind) return
+    setSavingKind(true)
+    try {
+      await onChangeKind(next)
+    } finally {
+      setSavingKind(false)
+    }
+  }
 
   const [open, setOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -141,7 +156,9 @@ export function PaddockDetail({ paddock, collars, cows, paddocks, onRename, onEd
                 <Pencil />
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">{paddock.area_ha} ha</p>
+            <p className="text-xs text-muted-foreground">
+              {paddock.area_ha} ha{kind === 'milking_shed' && ` · holds ${paddock.capacity} cows`}
+            </p>
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span className={`size-2 rounded-full ${synced ? 'bg-emerald-500' : 'animate-pulse bg-amber-500'}`} />
               Fence v{version}
@@ -187,6 +204,22 @@ export function PaddockDetail({ paddock, collars, cows, paddocks, onRename, onEd
       )}
 
       {renameError && <p className="text-sm text-destructive">{renameError}</p>}
+
+      <div className="flex items-center justify-between gap-3 border-t border-black/5 pt-2">
+        <p className="text-xs text-muted-foreground">Kind</p>
+        <Select items={KINDS} value={kind} onValueChange={(v) => v && changeKind(v as PaddockKind)} disabled={savingKind}>
+          <SelectTrigger size="sm" className="w-36 cursor-pointer" aria-label="Paddock kind">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {KINDS.map((k) => (
+              <SelectItem key={k.value} value={k.value}>
+                {k.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <div className="flex items-center justify-between gap-3 border-t border-black/5 pt-2">
         <p className="text-xs text-muted-foreground">
