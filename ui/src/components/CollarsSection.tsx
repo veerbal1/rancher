@@ -137,22 +137,20 @@ export function CollarsSection({ collars, cows, paddocks, canAdd, onAdd, onDelet
             <li
               key={c.id}
               onClick={selecting ? () => toggle(c.id) : undefined}
-              className={`flex items-center gap-1.5 rounded-lg py-1 pr-1 pl-2 text-sm ${selecting ? 'cursor-pointer select-none' : ''} ${selected.has(c.id) ? 'bg-white ring-2 ring-primary/60' : 'bg-white/60'}`}
+              className={`group relative overflow-hidden rounded-xl text-sm ${selecting ? 'cursor-pointer select-none' : ''} ${selected.has(c.id) ? 'bg-white ring-2 ring-primary/60' : 'bg-white/60'}`}
             >
-              <div className="relative shrink-0">
-                <img src="/collar.png" alt="" className="size-7" />
-                {c.paddock_id ? (
-                  <span className="absolute -top-0.5 -right-0.5 flex size-2.5" title="Live">
-                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex size-2.5 rounded-full border border-white bg-emerald-500" />
-                  </span>
-                ) : (
-                  <span className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full border border-white bg-zinc-400" title="Inactive" />
-                )}
-              </div>
-              <div className="min-w-0 flex-1 leading-tight">
+              <img src="/cow-collar.webp" alt="" className="aspect-[4/3] w-full bg-white object-contain p-1" />
+              {c.paddock_id ? (
+                <span className="absolute top-2 left-2 flex size-2.5" title="Live">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex size-2.5 rounded-full border border-white bg-emerald-500" />
+                </span>
+              ) : (
+                <span className="absolute top-2 left-2 size-2.5 rounded-full border border-white bg-zinc-400" title="Inactive" />
+              )}
+              <div className="px-2 py-1.5 leading-tight">
                 <div className="flex items-center justify-between gap-1">
-                  <p>{c.name}</p>
+                  <p className="min-w-0 truncate font-medium">{c.name}</p>
                   <BatteryLevel level={cowOf(c)?.battery} />
                 </div>
                 <p className="truncate text-xs text-muted-foreground">
@@ -162,7 +160,7 @@ export function CollarsSection({ collars, cows, paddocks, canAdd, onAdd, onDelet
               </div>
               {selecting ? (
                 <Checkbox
-                  className="mr-1"
+                  className="absolute top-1.5 right-1.5 bg-white"
                   checked={selected.has(c.id)}
                   onClick={(e) => e.stopPropagation()}
                   onCheckedChange={() => toggle(c.id)}
@@ -172,7 +170,7 @@ export function CollarsSection({ collars, cows, paddocks, canAdd, onAdd, onDelet
                 <Button
                   variant="ghost"
                   size="icon-xs"
-                  className="cursor-pointer text-muted-foreground hover:text-destructive"
+                  className="absolute top-1 right-1 cursor-pointer bg-white/80 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive focus-visible:opacity-100"
                   onClick={() => askDelete([c])}
                   aria-label={`Delete ${c.name}`}
                 >
@@ -232,8 +230,8 @@ function BatteryLevel({ level }: { level?: number }) {
   if (level === undefined) return null
   const Icon = level >= 75 ? BatteryFull : level >= 40 ? BatteryMedium : BatteryLow
   return (
-    <span className={`flex items-center gap-0.5 text-xs tabular-nums ${level < 20 ? 'text-destructive' : 'text-muted-foreground'}`} title="Battery">
-      <Icon className="size-3.5" />
+    <span className={`flex shrink-0 items-center gap-0.5 text-xs tabular-nums ${level < 20 ? 'text-destructive' : 'text-muted-foreground'}`} title="Battery">
+      <Icon className="size-3" />
       {level}%
     </span>
   )

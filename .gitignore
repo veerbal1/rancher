@@ -14,3 +14,6 @@ skills-lock.json
 
 # Terraform plans
 infra/*.tfplan
+
+
+.claude
