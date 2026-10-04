@@ -35,6 +35,7 @@ type MilkingSession struct {
 	MilkingSecs   int          `json:"milking_secs"       dynamodbav:"milking_secs"`
 	Status        string       `json:"status"             dynamodbav:"status"`
 	InShed        int          `json:"in_shed"            dynamodbav:"in_shed"`
+	Slot          string       `json:"slot,omitempty"     dynamodbav:"slot,omitempty"`
 	StartedAt     string       `json:"started_at"         dynamodbav:"started_at"`
 	EndedAt       string       `json:"ended_at,omitempty" dynamodbav:"ended_at,omitempty"`
 	Cows          []SessionCow `json:"cows"               dynamodbav:"-"`
@@ -82,45 +83,61 @@ func startMilking(ctx context.Context, farmerID, body string) (events.APIGateway
 		return respond(http.StatusBadRequest, errorBody("send from_paddock_id, shed_id and to_paddock_id, with the shed different from the other two"))
 	}
 
-	places := map[string]*Paddock{}
-	for _, id := range []string{in.FromPaddockID, in.ShedID, in.ToPaddockID} {
-		p, err := getPaddock(ctx, farmerID, id)
-		if err != nil {
-			return events.APIGatewayV2HTTPResponse{}, err
-		}
-		if p == nil {
-			return respond(http.StatusNotFound, errorBody("paddock not found"))
-		}
-		places[id] = p
-	}
-	shed := places[in.ShedID]
-	if shed.Kind != kindMilkingShed {
-		return respond(http.StatusBadRequest, errorBody(shed.Name+" is not a milking shed"))
-	}
-	for _, id := range []string{in.FromPaddockID, in.ToPaddockID} {
-		if places[id].Kind == kindMilkingShed {
-			return respond(http.StatusBadRequest, errorBody("cows must come from and go to a paddock or a rest shed, not "+places[id].Name))
-		}
-	}
-	for _, pair := range [][2]string{{in.FromPaddockID, in.ShedID}, {in.ShedID, in.ToPaddockID}} {
-		lane, err := findLane(ctx, farmerID, pair[0], pair[1])
-		if err != nil {
-			return events.APIGatewayV2HTTPResponse{}, err
-		}
-		if lane == nil {
-			return respond(http.StatusBadRequest, errorBody(fmt.Sprintf("draw a lane between %s and %s first", places[pair[0]].Name, places[pair[1]].Name)))
-		}
-	}
-
-	collars, err := collarsInPaddock(ctx, farmerID, in.FromPaddockID)
+	s, prob, err := beginSession(ctx, farmerID, rand.Text(), "", in.FromPaddockID, in.ShedID, in.ToPaddockID)
 	if err != nil {
 		return events.APIGatewayV2HTTPResponse{}, err
 	}
+	if prob != nil {
+		return respond(prob.status, errorBody(prob.msg))
+	}
+	return respond(http.StatusCreated, s)
+}
+
+type problem struct {
+	status int
+	msg    string
+}
+
+func beginSession(ctx context.Context, farmerID, id, slot, fromID, shedID, toID string) (*MilkingSession, *problem, error) {
+	places := map[string]*Paddock{}
+	for _, pid := range []string{fromID, shedID, toID} {
+		p, err := getPaddock(ctx, farmerID, pid)
+		if err != nil {
+			return nil, nil, err
+		}
+		if p == nil {
+			return nil, &problem{http.StatusNotFound, "paddock not found"}, nil
+		}
+		places[pid] = p
+	}
+	shed := places[shedID]
+	if shed.Kind != kindMilkingShed {
+		return nil, &problem{http.StatusBadRequest, shed.Name + " is not a milking shed"}, nil
+	}
+	for _, pid := range []string{fromID, toID} {
+		if places[pid].Kind == kindMilkingShed {
+			return nil, &problem{http.StatusBadRequest, "cows must come from and go to a paddock or a rest shed, not " + places[pid].Name}, nil
+		}
+	}
+	for _, pair := range [][2]string{{fromID, shedID}, {shedID, toID}} {
+		lane, err := findLane(ctx, farmerID, pair[0], pair[1])
+		if err != nil {
+			return nil, nil, err
+		}
+		if lane == nil {
+			return nil, &problem{http.StatusBadRequest, fmt.Sprintf("draw a lane between %s and %s first", places[pair[0]].Name, places[pair[1]].Name)}, nil
+		}
+	}
+
+	collars, err := collarsInPaddock(ctx, farmerID, fromID)
+	if err != nil {
+		return nil, nil, err
+	}
 	if len(collars) == 0 {
-		return respond(http.StatusBadRequest, errorBody("there are no cows in "+places[in.FromPaddockID].Name))
+		return nil, &problem{http.StatusBadRequest, "there are no cows in " + places[fromID].Name}, nil
 	}
 	if len(collars) > maxCowsPerSession {
-		return respond(http.StatusBadRequest, errorBody(fmt.Sprintf("a milking can take at most %d cows", maxCowsPerSession)))
+		return nil, &problem{http.StatusBadRequest, fmt.Sprintf("a milking can take at most %d cows", maxCowsPerSession)}, nil
 	}
 
 	capacity := shed.Capacity
@@ -128,10 +145,11 @@ func startMilking(ctx context.Context, farmerID, body string) (events.APIGateway
 		capacity = defaultShedCapacity
 	}
 	s := MilkingSession{
-		ID:            rand.Text(),
-		FromPaddockID: in.FromPaddockID,
-		ShedID:        in.ShedID,
-		ToPaddockID:   in.ToPaddockID,
+		ID:            id,
+		Slot:          slot,
+		FromPaddockID: fromID,
+		ShedID:        shedID,
+		ToPaddockID:   toID,
 		Capacity:      capacity,
 		MilkingSecs:   int(milkingTime / time.Second),
 		Status:        sessionRunning,
@@ -140,13 +158,13 @@ func startMilking(ctx context.Context, farmerID, body string) (events.APIGateway
 	}
 	item, err := attributevalue.MarshalMap(sessionItem{PK: "FARMER#" + farmerID, SK: "SESSION#" + s.ID, MilkingSession: s})
 	if err != nil {
-		return events.APIGatewayV2HTTPResponse{}, err
+		return nil, nil, err
 	}
 	writes := []types.TransactWriteItem{
 		{Put: &types.Put{TableName: aws.String(table), Item: item, ConditionExpression: aws.String("attribute_not_exists(PK)")}},
 		{Update: &types.Update{
 			TableName:                aws.String(table),
-			Key:                      farmKey(farmerID, "PADDOCK#"+in.ShedID),
+			Key:                      farmKey(farmerID, "PADDOCK#"+shedID),
 			UpdateExpression:         aws.String("SET running_session = :id"),
 			ConditionExpression:      aws.String("attribute_not_exists(running_session) AND #kind = :shed"),
 			ExpressionAttributeNames: map[string]string{"#kind": "kind"},
@@ -160,7 +178,7 @@ func startMilking(ctx context.Context, farmerID, body string) (events.APIGateway
 		cow := SessionCow{CollarID: c.ID, Number: c.Number, Status: cowWaiting}
 		ci, err := attributevalue.MarshalMap(sessionCowItem{PK: "FARMER#" + farmerID, SK: "SESSION#" + s.ID + "#COW#" + c.ID, SessionID: s.ID, SessionCow: cow})
 		if err != nil {
-			return events.APIGatewayV2HTTPResponse{}, err
+			return nil, nil, err
 		}
 		writes = append(writes, types.TransactWriteItem{Put: &types.Put{TableName: aws.String(table), Item: ci}})
 		s.Cows = append(s.Cows, cow)
@@ -169,12 +187,12 @@ func startMilking(ctx context.Context, farmerID, body string) (events.APIGateway
 	_, err = db.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: writes})
 	var cancelled *types.TransactionCanceledException
 	if errors.As(err, &cancelled) {
-		return respond(http.StatusConflict, errorBody("milking is already running in "+shed.Name))
+		return nil, &problem{http.StatusConflict, "milking is already running in " + shed.Name}, nil
 	}
 	if err != nil {
-		return events.APIGatewayV2HTTPResponse{}, err
+		return nil, nil, err
 	}
-	return respond(http.StatusCreated, s)
+	return &s, nil, nil
 }
 
 func listMilkingSessions(ctx context.Context, farmerID string) (events.APIGatewayV2HTTPResponse, error) {
@@ -247,27 +265,7 @@ func stopMilking(ctx context.Context, farmerID, sessionID string) (events.APIGat
 	}
 
 	now := time.Now().UTC().Format(time.RFC3339)
-	_, err = db.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: []types.TransactWriteItem{
-		{Update: &types.Update{
-			TableName:                aws.String(table),
-			Key:                      farmKey(farmerID, "SESSION#"+sessionID),
-			UpdateExpression:         aws.String("SET #status = :stopped, ended_at = :now"),
-			ConditionExpression:      aws.String("#status = :running"),
-			ExpressionAttributeNames: map[string]string{"#status": "status"},
-			ExpressionAttributeValues: map[string]types.AttributeValue{
-				":stopped": &types.AttributeValueMemberS{Value: sessionStopped},
-				":running": &types.AttributeValueMemberS{Value: sessionRunning},
-				":now":     &types.AttributeValueMemberS{Value: now},
-			},
-		}},
-		{Update: &types.Update{
-			TableName:                 aws.String(table),
-			Key:                       farmKey(farmerID, "PADDOCK#"+s.ShedID),
-			UpdateExpression:          aws.String("REMOVE running_session"),
-			ConditionExpression:       aws.String("running_session = :id"),
-			ExpressionAttributeValues: map[string]types.AttributeValue{":id": &types.AttributeValueMemberS{Value: sessionID}},
-		}},
-	}})
+	err = closeSession(ctx, farmerID, s, sessionStopped, now)
 	var cancelled *types.TransactionCanceledException
 	if errors.As(err, &cancelled) {
 		return respond(http.StatusConflict, errorBody("this milking has already ended"))
@@ -277,6 +275,31 @@ func stopMilking(ctx context.Context, farmerID, sessionID string) (events.APIGat
 	}
 	s.Status, s.EndedAt, s.Cows = sessionStopped, now, []SessionCow{}
 	return respond(http.StatusOK, s)
+}
+
+func closeSession(ctx context.Context, farmerID string, s MilkingSession, status, now string) error {
+	_, err := db.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: []types.TransactWriteItem{
+		{Update: &types.Update{
+			TableName:                aws.String(table),
+			Key:                      farmKey(farmerID, "SESSION#"+s.ID),
+			UpdateExpression:         aws.String("SET #status = :status, ended_at = :now"),
+			ConditionExpression:      aws.String("#status = :running"),
+			ExpressionAttributeNames: map[string]string{"#status": "status"},
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":status":  &types.AttributeValueMemberS{Value: status},
+				":running": &types.AttributeValueMemberS{Value: sessionRunning},
+				":now":     &types.AttributeValueMemberS{Value: now},
+			},
+		}},
+		{Update: &types.Update{
+			TableName:                 aws.String(table),
+			Key:                       farmKey(farmerID, "PADDOCK#"+s.ShedID),
+			UpdateExpression:          aws.String("REMOVE running_session"),
+			ConditionExpression:       aws.String("running_session = :id"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{":id": &types.AttributeValueMemberS{Value: s.ID}},
+		}},
+	}})
+	return err
 }
 
 func collarsInPaddock(ctx context.Context, farmerID, paddockID string) ([]Collar, error) {
