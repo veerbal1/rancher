@@ -263,7 +263,7 @@ func TestReconcileStartsShiftOnlyWhenPlanned(t *testing.T) {
 			Shifts:   shifts,
 		}
 	}
-	shiftAB := WorldShift{ID: "S1", FromPaddockID: "A", ToPaddockID: "B", StartAt: time.Unix(1_000, 0)}
+	shiftAB := WorldShift{ID: "S1", FromPaddockID: "A", ToPaddockID: "B", CollarIDs: []string{"C1"}, StartAt: time.Unix(1_000, 0)}
 
 	tower := NewTower("F")
 	tower.Reconcile(farm("A"))
@@ -280,6 +280,30 @@ func TestReconcileStartsShiftOnlyWhenPlanned(t *testing.T) {
 	}
 	if r := tower.Reconcile(farm("C")); r.FenceChanged != 1 || col.shift != nil {
 		t.Errorf("unplanned move: result %+v, shifting %v", r, col.shift != nil)
+	}
+}
+
+func TestReconcileFollowsEachCollarsOwnShift(t *testing.T) {
+	paddocks := []WorldPaddock{worldPaddock("A", squareAt(0, 0, 100)), worldPaddock("B", squareAt(300, 0, 100))}
+	shift := func(id, collarID string, start int64) WorldShift {
+		return WorldShift{ID: id, FromPaddockID: "A", ToPaddockID: "B", CollarIDs: []string{collarID}, StartAt: time.Unix(start, 0)}
+	}
+
+	tower := NewTower("F1")
+	tower.Reconcile(farm(paddocks, worldCollar("C1", 1, "A"), worldCollar("C2", 2, "A")))
+	moved := farm(paddocks, worldCollar("C1", 1, "B"), worldCollar("C2", 2, "B"))
+	moved.Shifts = []WorldShift{shift("old", "C1", 500), shift("S1", "C1", 1_000), shift("S2", "C2", 1_100)}
+	if r := tower.Reconcile(moved); r.Shifted != 2 {
+		t.Fatalf("started %d shifts, want 2 (%+v)", r.Shifted, r)
+	}
+
+	for id, want := range map[string]int64{"C1": 1_000, "C2": 1_100} {
+		switch s := tower.collars[id].shift; {
+		case s == nil:
+			t.Errorf("%s did not start a shift", id)
+		case !s.Start.Equal(time.Unix(want, 0)):
+			t.Errorf("%s follows the shift starting at %d, want %d", id, s.Start.Unix(), want)
+		}
 	}
 }
 
@@ -328,8 +352,8 @@ func TestTurnBackMidLaneWalksTheHerdHome(t *testing.T) {
 		wp.Polygon.Coordinates = [][][2]float64{ring(p)}
 		return wp
 	}
-	worldShift := func(from, to string, pts []Point, start time.Time) WorldShift {
-		s := WorldShift{ID: from + to, FromPaddockID: from, ToPaddockID: to, StartAt: start, WidthM: 8}
+	worldShift := func(from, to string, ids []string, pts []Point, start time.Time) WorldShift {
+		s := WorldShift{ID: from + to, FromPaddockID: from, ToPaddockID: to, CollarIDs: ids, StartAt: start, WidthM: 8}
 		s.Path = &struct {
 			Coordinates [][2]float64 `json:"coordinates"`
 		}{}
@@ -346,10 +370,14 @@ func TestTurnBackMidLaneWalksTheHerdHome(t *testing.T) {
 	for _, herd := range []int{5, 8, 10} {
 		for _, need := range []int{3, 5} {
 			t.Run(fmt.Sprintf("%d cows, back after %d in the lane", herd, need), func(t *testing.T) {
+				var ids []string
+				for i := 1; i <= herd; i++ {
+					ids = append(ids, fmt.Sprintf("C%d", i))
+				}
 				farm := func(paddockID string, shifts ...WorldShift) WorldFarm {
 					f := WorldFarm{FarmerID: "F", Paddocks: []WorldPaddock{paddock("A", a), paddock("B", b)}, Shifts: shifts}
-					for i := 1; i <= herd; i++ {
-						f.Collars = append(f.Collars, WorldCollar{ID: fmt.Sprintf("C%d", i), Number: i, PaddockID: &paddockID})
+					for i, id := range ids {
+						f.Collars = append(f.Collars, WorldCollar{ID: id, Number: i + 1, PaddockID: &paddockID})
 					}
 					return f
 				}
@@ -357,7 +385,7 @@ func TestTurnBackMidLaneWalksTheHerdHome(t *testing.T) {
 				t0 := time.Unix(1_000, 0)
 				tower := NewTower("F")
 				tower.Reconcile(farm("A"))
-				tower.Reconcile(farm("B", worldShift("A", "B", lane, t0)))
+				tower.Reconcile(farm("B", worldShift("A", "B", ids, lane, t0)))
 
 				now := t0
 				tick := func() {
@@ -385,7 +413,7 @@ func TestTurnBackMidLaneWalksTheHerdHome(t *testing.T) {
 					t.Fatalf("only %d cows reached the lane before turning back", inLane())
 				}
 
-				if r := tower.Reconcile(farm("A", worldShift("B", "A", reversed, now))); r.Shifted != herd {
+				if r := tower.Reconcile(farm("A", worldShift("B", "A", ids, reversed, now))); r.Shifted != herd {
 					t.Fatalf("turn back started %d shifts, want %d (%+v)", r.Shifted, herd, r)
 				}
 
