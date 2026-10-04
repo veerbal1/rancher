@@ -60,7 +60,7 @@ function rippleAt(now: number) {
   return { radius, opacity: byLevel((p) => 1 - p) }
 }
 
-export function CowsLayer({ cows }: { cows: Cow[] }) {
+export function CowsLayer({ cows, selectedId }: { cows: Cow[]; selectedId: string | null }) {
   const { current: mapRef } = useMap()
   const [imageReady, setImageReady] = useState(false)
   const shown = useSmoothCows(cows)
@@ -139,8 +139,8 @@ export function CowsLayer({ cows }: { cows: Cow[] }) {
             'circle-radius': ['interpolate', ['linear'], ['zoom'], 14, 7, 17, 14, 20, 28],
             'circle-color': stateColor,
             'circle-opacity': 0.35,
-            'circle-stroke-width': 2,
-            'circle-stroke-color': stateColor,
+            'circle-stroke-width': ['case', ['==', ['get', 'collar_id'], selectedId ?? ''], 4, 2],
+            'circle-stroke-color': ['case', ['==', ['get', 'collar_id'], selectedId ?? ''], '#ffffff', stateColor],
           }}
         />
         <Layer
