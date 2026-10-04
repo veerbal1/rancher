@@ -12,6 +12,7 @@ export type Shift = {
   width_m: number
   start_at: string
   expires_at: string
+  session_id?: string
 }
 
 const FARM_API_URL = import.meta.env.VITE_FARM_API_URL
