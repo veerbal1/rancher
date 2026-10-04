@@ -15,25 +15,29 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { KINDS, type Paddock, type PaddockKind } from '@/usePaddocks'
+import type { Lane } from '@/useLanes'
 import type { Collar } from '@/useCollars'
 import type { Cow } from '@/useCows'
 import { AssignCollarsDialog } from './AssignCollarsDialog'
 import { MoveHerdDialog } from './MoveHerdDialog'
+import { DrawLaneDialog } from './DrawLaneDialog'
 
 type Props = {
   paddock: Paddock
   collars: Collar[]
   cows: Cow[]
   paddocks: Paddock[]
+  lanes: Lane[]
   onRename: (name: string) => Promise<void>
   onChangeKind: (kind: PaddockKind) => Promise<void>
   onEditBoundary: () => void
   onDelete: () => Promise<void>
   onAssignCollars: (add: string[], remove: string[]) => Promise<void>
-  onMoveHerd: (toPaddockId: string) => void
+  onMoveHerd: (toPaddockId: string, useSavedLane: boolean) => void
+  onDrawLane: (toPaddockId: string) => void
 }
 
-export function PaddockDetail({ paddock, collars, cows, paddocks, onRename, onChangeKind, onEditBoundary, onDelete, onAssignCollars, onMoveHerd }: Props) {
+export function PaddockDetail({ paddock, collars, cows, paddocks, lanes, onRename, onChangeKind, onEditBoundary, onDelete, onAssignCollars, onMoveHerd, onDrawLane }: Props) {
   const collarCount = collars.filter((c) => c.paddock_id === paddock.id).length
   const version = paddock.fence_version ?? 0
   const here = new Set(collars.filter((c) => c.paddock_id === paddock.id).map((c) => c.id))
@@ -45,6 +49,11 @@ export function PaddockDetail({ paddock, collars, cows, paddocks, onRename, onCh
   const [name, setName] = useState(paddock.name)
   const [renaming, setRenaming] = useState(false)
   const [renameError, setRenameError] = useState('')
+
+  const laneNames = lanes
+    .map((l) => (l.from_paddock_id === paddock.id ? l.to_paddock_id : l.to_paddock_id === paddock.id ? l.from_paddock_id : null))
+    .map((id) => paddocks.find((p) => p.id === id)?.name)
+    .filter(Boolean)
 
   const [savingKind, setSavingKind] = useState(false)
   const kind = paddock.kind ?? 'paddock'
@@ -222,11 +231,18 @@ export function PaddockDetail({ paddock, collars, cows, paddocks, onRename, onCh
       </div>
 
       <div className="flex items-center justify-between gap-3 border-t border-black/5 pt-2">
+        <p className="min-w-0 truncate text-xs text-muted-foreground" title={laneNames.join(', ')}>
+          Lanes to {laneNames.length > 0 ? laneNames.join(', ') : 'nowhere yet'}
+        </p>
+        <DrawLaneDialog paddock={paddock} paddocks={paddocks} lanes={lanes} onPick={onDrawLane} />
+      </div>
+
+      <div className="flex items-center justify-between gap-3 border-t border-black/5 pt-2">
         <p className="text-xs text-muted-foreground">
           {collarCount} collar{collarCount === 1 ? '' : 's'}
         </p>
         <div className="flex items-center gap-1.5">
-          <MoveHerdDialog paddock={paddock} paddocks={paddocks} cowCount={collarCount} onPick={onMoveHerd} />
+          <MoveHerdDialog paddock={paddock} paddocks={paddocks} cowCount={collarCount} lanes={lanes} onPick={onMoveHerd} />
           <AssignCollarsDialog paddock={paddock} collars={collars} paddocks={paddocks} onSave={onAssignCollars} />
         </div>
       </div>
