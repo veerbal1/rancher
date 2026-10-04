@@ -29,6 +29,7 @@ type Event struct {
 	Level        Cue       `json:"level"`
 	Side         Side      `json:"side"`
 	FenceVersion int       `json:"fence_version"`
+	Battery      int       `json:"battery"`
 }
 
 func main() {

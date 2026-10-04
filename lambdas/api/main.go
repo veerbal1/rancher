@@ -29,6 +29,7 @@ type Cow struct {
 	Level        string  `json:"level"      dynamodbav:"level"`
 	Side         string  `json:"side"       dynamodbav:"side"`
 	FenceVersion int     `json:"fence_version" dynamodbav:"fence_version"`
+	Battery      int     `json:"battery"    dynamodbav:"battery"`
 }
 
 const staleAfter = 10 * time.Second

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { BatteryFull, BatteryLow, BatteryMedium, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -30,8 +30,9 @@ type Props = {
 
 export function CollarsSection({ collars, cows, paddocks, canAdd, onAdd, onDelete, onUnassign }: Props) {
   const paddockName = (id: string | null) => paddocks.find((p) => p.id === id)?.name
+  const cowOf = (c: Collar) => cows.find((w) => w.collar_id === c.id)
   const syncing = (c: Collar) => {
-    const cow = cows.find((w) => w.collar_id === c.id)
+    const cow = cowOf(c)
     const paddock = paddocks.find((p) => p.id === c.paddock_id)
     return !!cow && !!paddock && cow.state !== 'moving' && (cow.fence_version ?? 0) < (paddock.fence_version ?? 0)
   }
@@ -150,7 +151,10 @@ export function CollarsSection({ collars, cows, paddocks, canAdd, onAdd, onDelet
                 )}
               </div>
               <div className="min-w-0 flex-1 leading-tight">
-                <p>{c.name}</p>
+                <div className="flex items-center justify-between gap-1">
+                  <p>{c.name}</p>
+                  <BatteryLevel level={cowOf(c)?.battery} />
+                </div>
                 <p className="truncate text-xs text-muted-foreground">
                   {paddockName(c.paddock_id) ?? 'Unassigned'}
                   {syncing(c) && <span className="text-amber-700"> · syncing</span>}
@@ -221,5 +225,16 @@ export function CollarsSection({ collars, cows, paddocks, canAdd, onAdd, onDelet
         </AlertDialogContent>
       </AlertDialog>
     </section>
+  )
+}
+
+function BatteryLevel({ level }: { level?: number }) {
+  if (level === undefined) return null
+  const Icon = level >= 75 ? BatteryFull : level >= 40 ? BatteryMedium : BatteryLow
+  return (
+    <span className={`flex items-center gap-0.5 text-xs tabular-nums ${level < 20 ? 'text-destructive' : 'text-muted-foreground'}`} title="Battery">
+      <Icon className="size-3.5" />
+      {level}%
+    </span>
   )
 }

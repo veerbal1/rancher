@@ -95,6 +95,7 @@ type Collar struct {
 	ID        string
 	Number    int
 	PaddockID string
+	Battery   int
 	cow       *Cow
 	fence     Fence
 	warnM     float64
@@ -115,7 +116,7 @@ type Collar struct {
 }
 
 func NewCollar(id string, number int, paddockID string, fence Polygon, c *Cow, warnM float64) *Collar {
-	return &Collar{ID: id, Number: number, PaddockID: paddockID, cow: c, fence: fence, warnM: warnM, state: Inside}
+	return &Collar{ID: id, Number: number, PaddockID: paddockID, Battery: 51 + c.rng.Intn(50), cow: c, fence: fence, warnM: warnM, state: Inside}
 }
 
 func (col *Collar) SetFence(paddockID string, fence Polygon) {

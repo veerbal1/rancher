@@ -13,6 +13,7 @@ export type Cow = {
   level: string
   side?: 'none' | 'left' | 'right' | 'both'
   fence_version?: number
+  battery?: number
 }
 
 const API_URL = import.meta.env.VITE_API_URL

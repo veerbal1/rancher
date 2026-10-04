@@ -145,6 +145,7 @@ func (t *Tower) Tick(now time.Time, emit func(Event)) {
 			Level:        col.Level(),
 			Side:         col.Side(),
 			FenceVersion: col.fenceVersion,
+			Battery:      col.Battery,
 		})
 	}
 }
