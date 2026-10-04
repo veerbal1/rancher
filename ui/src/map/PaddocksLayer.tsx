@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Source, Layer, useMap } from '@vis.gl/react-maplibre'
 import type { FeatureCollection, Polygon } from 'geojson'
 import type { ExpressionSpecification } from 'maplibre-gl'
@@ -32,15 +32,19 @@ function roofImage({ base, ridge, shine }: (typeof ROOFS)[keyof typeof ROOFS]) {
 
 export function PaddocksLayer({ paddocks, selectedId }: Props) {
   const { current: mapRef } = useMap()
-  const [roofsReady, setRoofsReady] = useState(false)
 
   useEffect(() => {
     const map = mapRef?.getMap()
     if (!map) return
-    for (const [id, colors] of Object.entries(ROOFS)) {
-      if (!map.hasImage(id)) map.addImage(id, roofImage(colors), { pixelRatio: 2 })
+    const addRoof = (id: string) => {
+      if (id in ROOFS && !map.hasImage(id)) map.addImage(id, roofImage(ROOFS[id as keyof typeof ROOFS]), { pixelRatio: 2 })
     }
-    setRoofsReady(true)
+    Object.keys(ROOFS).forEach(addRoof)
+    const onMissing = (e: { id: string }) => addRoof(e.id)
+    map.on('styleimagemissing', onMissing)
+    return () => {
+      map.off('styleimagemissing', onMissing)
+    }
   }, [mapRef])
 
   const shapes = useMemo<FeatureCollection<Polygon>>(
@@ -65,18 +69,15 @@ export function PaddocksLayer({ paddocks, selectedId }: Props) {
         filter={['==', ['get', 'kind'], 'paddock']}
         paint={{ 'fill-color': '#2e9e5b', 'fill-opacity': ['case', isSelected, 0.4, 0.15] }}
       />
-      {roofsReady && (
-        <Layer
-          id="sheds-fill"
-          type="fill"
-          beforeId="paddocks-outline"
-          filter={['!=', ['get', 'kind'], 'paddock']}
-          paint={{
-            'fill-pattern': ['match', ['get', 'kind'], 'milking_shed', 'roof-white', 'roof-brown'],
-            'fill-opacity': ['case', isSelected, 1, 0.92],
-          }}
-        />
-      )}
+      <Layer
+        id="sheds-fill"
+        type="fill"
+        filter={['!=', ['get', 'kind'], 'paddock']}
+        paint={{
+          'fill-pattern': ['match', ['get', 'kind'], 'milking_shed', 'roof-white', 'roof-brown'],
+          'fill-opacity': ['case', isSelected, 1, 0.92],
+        }}
+      />
       <Layer
         id="paddocks-outline"
         type="line"
