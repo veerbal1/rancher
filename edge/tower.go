@@ -146,6 +146,7 @@ func (t *Tower) Tick(now time.Time, emit func(Event)) {
 			Seq:          t.seq,
 			Time:         now,
 			CollarID:     col.ID,
+			Number:       col.Number,
 			PaddockID:    col.PaddockID,
 			Lat:          col.cow.Lat,
 			Lng:          col.cow.Lng,
