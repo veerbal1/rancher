@@ -1,10 +1,7 @@
 package main
 
 import (
-	"bytes"
-	"compress/gzip"
 	"context"
-	"encoding/json"
 	"log"
 	"os"
 
@@ -14,27 +11,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/veerbal1/rancher/telemetry"
 )
 
-type Event struct {
-	FarmerID     string  `json:"farmer_id"  dynamodbav:"farmer_id"`
-	Seq          uint64  `json:"seq"        dynamodbav:"seq"`
-	Time         string  `json:"time"       dynamodbav:"time"`
-	CollarID     string  `json:"collar_id"  dynamodbav:"collar_id"`
-	PaddockID    string  `json:"paddock_id" dynamodbav:"paddock_id"`
-	Lat          float64 `json:"lat"        dynamodbav:"lat"`
-	Lng          float64 `json:"lng"        dynamodbav:"lng"`
-	Heading      float64 `json:"heading"    dynamodbav:"heading"`
-	State        string  `json:"state"      dynamodbav:"state"`
-	Level        string  `json:"level"      dynamodbav:"level"`
-	Side         string  `json:"side"       dynamodbav:"side"`
-	FenceVersion int     `json:"fence_version" dynamodbav:"fence_version"`
-	Battery      int     `json:"battery"    dynamodbav:"battery"`
-}
-
 var (
-	db    *dynamodb.Client
-	table = os.Getenv("TABLE_NAME")
+	db     *dynamodb.Client
+	roster *telemetry.Roster
+	table  = os.Getenv("TABLE_NAME")
 )
 
 func main() {
@@ -43,27 +26,35 @@ func main() {
 		log.Fatalf("aws config: %v", err)
 	}
 	db = dynamodb.NewFromConfig(cfg)
+	roster = telemetry.NewRoster(db, os.Getenv("RANCHER_TABLE"))
 	lambda.Start(handle)
 }
 
 func handle(ctx context.Context, in events.KinesisEvent) error {
-	var writes []types.WriteRequest
+	latest := map[string]telemetry.Event{}
 	for _, r := range in.Records {
-		var cows []Event
-		if err := unzipJSON(r.Kinesis.Data, &cows); err != nil {
+		cows, err := telemetry.Decode(r.Kinesis.Data)
+		if err != nil {
 			log.Printf("skip bad record: %v", err)
 			continue
 		}
-		for _, e := range cows {
-			if e.FarmerID == "" || e.CollarID == "" {
-				continue
-			}
-			item, err := attributevalue.MarshalMap(e)
-			if err != nil {
-				return err
-			}
-			writes = append(writes, types.WriteRequest{PutRequest: &types.PutRequest{Item: item}})
+		if err := roster.Fill(ctx, cows); err != nil {
+			return err
 		}
+		for _, e := range cows {
+			if e.FarmerID != "" && e.CollarID != "" {
+				latest[e.CollarID] = e
+			}
+		}
+	}
+
+	writes := make([]types.WriteRequest, 0, len(latest))
+	for _, e := range latest {
+		item, err := attributevalue.MarshalMap(e)
+		if err != nil {
+			return err
+		}
+		writes = append(writes, types.WriteRequest{PutRequest: &types.PutRequest{Item: item}})
 	}
 
 	for i := 0; i < len(writes); i += 25 {
@@ -80,13 +71,4 @@ func handle(ctx context.Context, in events.KinesisEvent) error {
 	}
 	log.Printf("saved %d cows from %d records", len(writes), len(in.Records))
 	return nil
-}
-
-func unzipJSON(data []byte, v any) error {
-	r, err := gzip.NewReader(bytes.NewReader(data))
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-	return json.NewDecoder(r).Decode(v)
 }
