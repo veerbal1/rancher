@@ -31,7 +31,8 @@ resource "aws_lambda_function" "ingest" {
   source_code_hash = data.archive_file.ingest.output_base64sha256
   environment {
     variables = {
-      TABLE_NAME = aws_dynamodb_table.cow_positions.name
+      TABLE_NAME    = aws_dynamodb_table.cow_positions.name
+      RANCHER_TABLE = aws_dynamodb_table.rancher.name
     }
   }
 }
@@ -70,10 +71,17 @@ resource "aws_iam_role_policy" "ingest_dynamodb" {
   role = aws_iam_role.ingest.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = "dynamodb:PutItem"
-      Resource = aws_dynamodb_table.cow_positions.arn
-    }]
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:PutItem", "dynamodb:BatchWriteItem"]
+        Resource = aws_dynamodb_table.cow_positions.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = "dynamodb:Query"
+        Resource = aws_dynamodb_table.rancher.arn
+      },
+    ]
   })
 }
