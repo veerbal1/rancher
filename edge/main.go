@@ -48,7 +48,7 @@ func main() {
 	go watchWorld(ctx, cfg, updates)
 	towers := map[string]*Tower{}
 
-	events := make(chan Event, 100)
+	events := make(chan Event, 2000)
 	done := make(chan struct{})
 	go func() {
 		if sendToKinesis {

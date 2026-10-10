@@ -13,7 +13,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-const MAX_PER_PURCHASE = 50
+const MAX_PER_PURCHASE = 100
 
 type Props = {
   disabled: boolean

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"log"
@@ -8,10 +10,10 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 type Event struct {
@@ -45,29 +47,46 @@ func main() {
 }
 
 func handle(ctx context.Context, in events.KinesisEvent) error {
-	saved := 0
+	var writes []types.WriteRequest
 	for _, r := range in.Records {
-		var e Event
-		if err := json.Unmarshal(r.Kinesis.Data, &e); err != nil {
+		var cows []Event
+		if err := unzipJSON(r.Kinesis.Data, &cows); err != nil {
 			log.Printf("skip bad record: %v", err)
 			continue
 		}
-		if e.FarmerID == "" || e.CollarID == "" {
-			log.Printf("skip record without farmer_id or collar_id: %s", r.Kinesis.Data)
-			continue
+		for _, e := range cows {
+			if e.FarmerID == "" || e.CollarID == "" {
+				continue
+			}
+			item, err := attributevalue.MarshalMap(e)
+			if err != nil {
+				return err
+			}
+			writes = append(writes, types.WriteRequest{PutRequest: &types.PutRequest{Item: item}})
 		}
-		item, err := attributevalue.MarshalMap(e)
-		if err != nil {
-			return err
-		}
-		if _, err := db.PutItem(ctx, &dynamodb.PutItemInput{
-			TableName: aws.String(table),
-			Item:      item,
-		}); err != nil {
-			return err
-		}
-		saved++
 	}
-	log.Printf("saved %d of %d records", saved, len(in.Records))
+
+	for i := 0; i < len(writes); i += 25 {
+		pending := writes[i:min(i+25, len(writes))]
+		for len(pending) > 0 {
+			out, err := db.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
+				RequestItems: map[string][]types.WriteRequest{table: pending},
+			})
+			if err != nil {
+				return err
+			}
+			pending = out.UnprocessedItems[table]
+		}
+	}
+	log.Printf("saved %d cows from %d records", len(writes), len(in.Records))
 	return nil
+}
+
+func unzipJSON(data []byte, v any) error {
+	r, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	return json.NewDecoder(r).Decode(v)
 }

@@ -18,7 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
-const maxCollarsPerPurchase = 50
+const maxCollarsPerPurchase = 100
 
 type Collar struct {
 	ID        string  `json:"id"         dynamodbav:"id"`

@@ -48,6 +48,12 @@ export function AssignCollarsDialog({ paddock, collars, paddocks, onSave }: Prop
     })
   }
 
+  const allSelected = collars.length > 0 && selected.size === collars.length
+
+  const toggleAll = (checked: boolean) => {
+    setSelected(checked ? new Set(collars.map((c) => c.id)) : new Set())
+  }
+
   const save = async () => {
     setSaving(true)
     setError('')
@@ -76,6 +82,12 @@ export function AssignCollarsDialog({ paddock, collars, paddocks, onSave }: Prop
             Tick the collars that belong in this paddock. Collars in another paddock move here.
           </DialogDescription>
         </DialogHeader>
+
+        <label className="flex cursor-pointer items-center gap-3 rounded-md border-b px-2 py-1.5 hover:bg-muted">
+          <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
+          <span className="flex-1 text-sm font-medium">Select all</span>
+          <span className="text-xs text-muted-foreground">{collars.length} collars</span>
+        </label>
 
         <ul className="grid max-h-72 gap-0.5 overflow-y-auto">
           {collars.map((c) => (

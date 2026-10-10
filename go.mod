@@ -10,6 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/apigatewaymanagementapi v1.39.0
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.69.1
 	github.com/aws/aws-sdk-go-v2/service/kinesis v1.56.1
+	google.golang.org/protobuf v1.36.12
 )
 
 require (

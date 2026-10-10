@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,6 +18,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
+
+const maxMessageBytes = 100_000
 
 type key struct {
 	FarmerID string `json:"farmer_id"`
@@ -43,14 +47,21 @@ func main() {
 func handle(ctx context.Context, in events.KinesisEvent) error {
 	latest := map[string]map[string]json.RawMessage{}
 	for _, r := range in.Records {
-		var k key
-		if err := json.Unmarshal(r.Kinesis.Data, &k); err != nil || k.FarmerID == "" || k.CollarID == "" {
+		var cows []json.RawMessage
+		if err := unzipJSON(r.Kinesis.Data, &cows); err != nil {
+			log.Printf("skip bad record: %v", err)
 			continue
 		}
-		if latest[k.FarmerID] == nil {
-			latest[k.FarmerID] = map[string]json.RawMessage{}
+		for _, c := range cows {
+			var k key
+			if err := json.Unmarshal(c, &k); err != nil || k.FarmerID == "" || k.CollarID == "" {
+				continue
+			}
+			if latest[k.FarmerID] == nil {
+				latest[k.FarmerID] = map[string]json.RawMessage{}
+			}
+			latest[k.FarmerID][k.CollarID] = c
 		}
-		latest[k.FarmerID][k.CollarID] = r.Kinesis.Data
 	}
 
 	for farmer, byCollar := range latest {
@@ -62,21 +73,40 @@ func handle(ctx context.Context, in events.KinesisEvent) error {
 		if len(ids) == 0 {
 			continue
 		}
-		cows := make([]json.RawMessage, 0, len(byCollar))
+		var bodies [][]byte
+		chunk, size := []json.RawMessage{}, 0
 		for _, c := range byCollar {
-			cows = append(cows, c)
+			if size+len(c) > maxMessageBytes && len(chunk) > 0 {
+				body, err := json.Marshal(chunk)
+				if err != nil {
+					return err
+				}
+				bodies = append(bodies, body)
+				chunk, size = []json.RawMessage{}, 0
+			}
+			chunk = append(chunk, c)
+			size += len(c) + 1
 		}
-		body, err := json.Marshal(cows)
+		body, err := json.Marshal(chunk)
 		if err != nil {
 			return err
 		}
+		bodies = append(bodies, body)
+
 		sent := 0
 		for _, id := range ids {
-			if send(ctx, id, body) {
+			ok := true
+			for _, body := range bodies {
+				if !send(ctx, id, body) {
+					ok = false
+					break
+				}
+			}
+			if ok {
 				sent++
 			}
 		}
-		log.Printf("farmer=%s cows=%d sent=%d of %d", farmer, len(cows), sent, len(ids))
+		log.Printf("farmer=%s cows=%d messages=%d sent=%d of %d", farmer, len(byCollar), len(bodies), sent, len(ids))
 	}
 	return nil
 }
@@ -122,4 +152,13 @@ func send(ctx context.Context, id string, body []byte) bool {
 		log.Printf("delete gone %s: %v", id, err)
 	}
 	return false
+}
+
+func unzipJSON(data []byte, v any) error {
+	r, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	return json.NewDecoder(r).Decode(v)
 }

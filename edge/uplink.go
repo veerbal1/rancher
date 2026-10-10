@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"log"
@@ -12,7 +14,7 @@ import (
 )
 
 func Uplink(events <-chan Event, client *kinesis.Client) {
-	var batch []Event
+	batch := map[string][]Event{}
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
@@ -23,33 +25,34 @@ func Uplink(events <-chan Event, client *kinesis.Client) {
 				send(client, batch)
 				return
 			}
-			batch = append(batch, e)
-			if len(batch) == 500 {
-				send(client, batch)
-				batch = nil
-			}
+			batch[e.FarmerID] = append(batch[e.FarmerID], e)
 		case <-ticker.C:
 			send(client, batch)
-			batch = nil
+			batch = map[string][]Event{}
 		}
 	}
 }
 
-func send(client *kinesis.Client, batch []Event) {
+func send(client *kinesis.Client, batch map[string][]Event) {
 	if len(batch) == 0 {
 		return
 	}
 	entries := make([]types.PutRecordsRequestEntry, 0, len(batch))
-	for _, e := range batch {
-		b, err := json.Marshal(e)
+	for farmerID, farm := range batch {
+		b, err := json.Marshal(farm)
 		if err != nil {
 			log.Printf("marshal: %v", err)
 			continue
 		}
+		var gz bytes.Buffer
+		w := gzip.NewWriter(&gz)
+		w.Write(b)
+		w.Close()
 		entries = append(entries, types.PutRecordsRequestEntry{
-			Data:         b,
-			PartitionKey: aws.String(e.FarmerID),
+			Data:         gz.Bytes(),
+			PartitionKey: aws.String(farmerID),
 		})
+		log.Printf("farm %s: %d cows, %d KB json, %d KB gzip", farmerID, len(farm), len(b)/1024, gz.Len()/1024)
 	}
 
 	out, err := client.PutRecords(context.Background(), &kinesis.PutRecordsInput{
@@ -63,5 +66,4 @@ func send(client *kinesis.Client, batch []Event) {
 	if n := aws.ToInt32(out.FailedRecordCount); n > 0 {
 		log.Printf("%d of %d records failed", n, len(entries))
 	}
-	log.Printf("sent %d records", len(entries))
 }
