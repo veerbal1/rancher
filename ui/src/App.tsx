@@ -341,7 +341,7 @@ function App() {
 
       <SatelliteMap
         initialBounds={INITIAL_BOUNDS}
-        interactiveLayerIds={busyOnMap ? [] : ['cow-icons', 'cow-rings', 'paddocks-fill', 'sheds-fill']}
+        interactiveLayerIds={busyOnMap ? [] : ['cow-rings', 'paddocks-fill', 'sheds-fill']}
         onClick={busyOnMap ? undefined : handleMapClick}
       >
         <PaddocksLayer paddocks={reshape ? paddocks.filter((p) => p.id !== reshape.id) : paddocks} selectedId={selectedPaddockId} />
