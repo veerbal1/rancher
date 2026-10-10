@@ -21,6 +21,7 @@ type Event struct {
 	Seq          uint64    `json:"seq"`
 	Time         time.Time `json:"time"`
 	CollarID     string    `json:"collar_id"`
+	Number       int       `json:"number"`
 	PaddockID    string    `json:"paddock_id"`
 	Lat          float64   `json:"lat"`
 	Lng          float64   `json:"lng"`
