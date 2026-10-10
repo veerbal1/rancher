@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -17,19 +15,16 @@ import (
 	gwtypes "github.com/aws/aws-sdk-go-v2/service/apigatewaymanagementapi/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/veerbal1/rancher/telemetry"
 )
 
 const maxMessageBytes = 100_000
 
-type key struct {
-	FarmerID string `json:"farmer_id"`
-	CollarID string `json:"collar_id"`
-}
-
 var (
-	db    *dynamodb.Client
-	gw    *apigatewaymanagementapi.Client
-	table = os.Getenv("TABLE_NAME")
+	db     *dynamodb.Client
+	gw     *apigatewaymanagementapi.Client
+	roster *telemetry.Roster
+	table  = os.Getenv("TABLE_NAME")
 )
 
 func main() {
@@ -38,6 +33,7 @@ func main() {
 		log.Fatalf("aws config: %v", err)
 	}
 	db = dynamodb.NewFromConfig(cfg)
+	roster = telemetry.NewRoster(db, os.Getenv("RANCHER_TABLE"))
 	gw = apigatewaymanagementapi.NewFromConfig(cfg, func(o *apigatewaymanagementapi.Options) {
 		o.BaseEndpoint = aws.String(os.Getenv("WS_ENDPOINT"))
 	})
@@ -47,20 +43,26 @@ func main() {
 func handle(ctx context.Context, in events.KinesisEvent) error {
 	latest := map[string]map[string]json.RawMessage{}
 	for _, r := range in.Records {
-		var cows []json.RawMessage
-		if err := unzipJSON(r.Kinesis.Data, &cows); err != nil {
+		cows, err := telemetry.Decode(r.Kinesis.Data)
+		if err != nil {
 			log.Printf("skip bad record: %v", err)
 			continue
 		}
+		if err := roster.Fill(ctx, cows); err != nil {
+			return err
+		}
 		for _, c := range cows {
-			var k key
-			if err := json.Unmarshal(c, &k); err != nil || k.FarmerID == "" || k.CollarID == "" {
+			if c.FarmerID == "" || c.CollarID == "" {
 				continue
 			}
-			if latest[k.FarmerID] == nil {
-				latest[k.FarmerID] = map[string]json.RawMessage{}
+			b, err := json.Marshal(c)
+			if err != nil {
+				return err
 			}
-			latest[k.FarmerID][k.CollarID] = c
+			if latest[c.FarmerID] == nil {
+				latest[c.FarmerID] = map[string]json.RawMessage{}
+			}
+			latest[c.FarmerID][c.CollarID] = b
 		}
 	}
 
@@ -152,13 +154,4 @@ func send(ctx context.Context, id string, body []byte) bool {
 		log.Printf("delete gone %s: %v", id, err)
 	}
 	return false
-}
-
-func unzipJSON(data []byte, v any) error {
-	r, err := gzip.NewReader(bytes.NewReader(data))
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-	return json.NewDecoder(r).Decode(v)
 }
