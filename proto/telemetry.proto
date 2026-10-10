@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package telemetry;
+
+option go_package = "github.com/veerbal1/rancher/telemetry";
+
+message FarmSecond {
+  string farmer_id = 1;
+  int64 time_ms = 2;
+  repeated Cow cows = 3;
+}
+
+message Cow {
+  string collar_id = 1;
+  string paddock_id = 2;
+  uint64 seq = 3;
+  sint32 lat_e6 = 4;
+  sint32 lng_e6 = 5;
+  uint32 heading_deg = 6;
+  State state = 7;
+  Cue level = 8;
+  Side side = 9;
+  uint32 fence_version = 10;
+  uint32 battery = 11;
+  uint32 number = 12;
+}
+
+enum State {
+  INSIDE = 0;
+  WARNING = 1;
+  BREACHED = 2;
+  MOVING = 3;
+}
+
+enum Cue {
+  CUE_NONE = 0;
+  AUDIO = 1;
+  VIBRATION = 2;
+  PULSE = 3;
+}
+
+enum Side {
+  SIDE_NONE = 0;
+  LEFT = 1;
+  RIGHT = 2;
+  BOTH = 3;
+}
