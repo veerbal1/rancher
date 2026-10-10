@@ -166,6 +166,11 @@ resource "aws_iam_role_policy" "push" {
       },
       {
         Effect   = "Allow"
+        Action   = ["dynamodb:Query"]
+        Resource = aws_dynamodb_table.rancher.arn
+      },
+      {
+        Effect   = "Allow"
         Action   = ["dynamodb:DeleteItem"]
         Resource = aws_dynamodb_table.connections.arn
       },
@@ -189,8 +194,9 @@ resource "aws_lambda_function" "push" {
 
   environment {
     variables = {
-      TABLE_NAME  = aws_dynamodb_table.connections.name
-      WS_ENDPOINT = replace(aws_apigatewayv2_stage.ws.invoke_url, "wss://", "https://")
+      TABLE_NAME    = aws_dynamodb_table.connections.name
+      RANCHER_TABLE = aws_dynamodb_table.rancher.name
+      WS_ENDPOINT   = replace(aws_apigatewayv2_stage.ws.invoke_url, "wss://", "https://")
     }
   }
 }
