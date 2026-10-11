@@ -3,7 +3,6 @@ import type { ExpressionSpecification } from 'maplibre-gl'
 import { Source, Layer, useMap } from '@vis.gl/react-maplibre'
 import type { FeatureCollection, Point } from 'geojson'
 import type { Cow } from '../useCows'
-import { useSmoothCows } from './useSmoothCows'
 
 const CUE_LAYER = 'cow-cues'
 const CUE_PERIOD_MS: Record<string, number> = { audio: 1000, vibration: 600, pulse: 350 }
@@ -39,7 +38,6 @@ function rippleAt(now: number) {
 
 export function CowsLayer({ cows, selectedId }: { cows: Cow[]; selectedId: string | null }) {
   const { current: mapRef } = useMap()
-  const shown = useSmoothCows(cows)
   const cued = cows.some((c) => c.level !== 'none')
 
   useEffect(() => {
@@ -62,13 +60,13 @@ export function CowsLayer({ cows, selectedId }: { cows: Cow[]; selectedId: strin
   const points = useMemo<FeatureCollection<Point>>(
     () => ({
       type: 'FeatureCollection',
-      features: shown.map((c) => ({
+      features: cows.map((c) => ({
         type: 'Feature',
         properties: { collar_id: c.collar_id, state: c.state, level: c.level },
         geometry: { type: 'Point', coordinates: [c.lng, c.lat] },
       })),
     }),
-    [shown],
+    [cows],
   )
 
   return (
