@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"log"
 	"os"
@@ -9,42 +10,27 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/valkey-io/valkey-go"
 )
 
-type Cow struct {
-	FarmerID     string  `json:"farmer_id"  dynamodbav:"farmer_id"`
-	Seq          uint64  `json:"seq"        dynamodbav:"seq"`
-	Time         string  `json:"time"       dynamodbav:"time"`
-	CollarID     string  `json:"collar_id"  dynamodbav:"collar_id"`
-	PaddockID    string  `json:"paddock_id" dynamodbav:"paddock_id"`
-	Lat          float64 `json:"lat"        dynamodbav:"lat"`
-	Lng          float64 `json:"lng"        dynamodbav:"lng"`
-	Heading      float64 `json:"heading"    dynamodbav:"heading"`
-	State        string  `json:"state"      dynamodbav:"state"`
-	Level        string  `json:"level"      dynamodbav:"level"`
-	Side         string  `json:"side"       dynamodbav:"side"`
-	FenceVersion int     `json:"fence_version" dynamodbav:"fence_version"`
-	Battery      int     `json:"battery"    dynamodbav:"battery"`
+type cow struct {
+	Time string `json:"time"`
 }
 
 const staleAfter = 10 * time.Second
 
-var (
-	db    *dynamodb.Client
-	table = os.Getenv("TABLE_NAME")
-)
+var cache valkey.Client
 
 func main() {
-	cfg, err := config.LoadDefaultConfig(context.Background())
+	var err error
+	cache, err = valkey.NewClient(valkey.ClientOption{
+		InitAddress:  []string{os.Getenv("VALKEY_ADDR")},
+		TLSConfig:    &tls.Config{},
+		DisableCache: true,
+	})
 	if err != nil {
-		log.Fatalf("aws config: %v", err)
+		log.Fatalf("valkey: %v", err)
 	}
-	db = dynamodb.NewFromConfig(cfg)
 	lambda.Start(handle)
 }
 
@@ -54,25 +40,18 @@ func handle(ctx context.Context, req events.LambdaFunctionURLRequest) (events.La
 		return events.LambdaFunctionURLResponse{StatusCode: 400, Body: `{"error":"farmer is required"}`}, nil
 	}
 
-	out, err := db.Query(ctx, &dynamodb.QueryInput{
-		TableName:              aws.String(table),
-		KeyConditionExpression: aws.String("farmer_id = :farmer"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":farmer": &types.AttributeValueMemberS{Value: farmer},
-		},
-	})
+	all, err := cache.Do(ctx, cache.B().Hgetall().Key("farm:"+farmer).Build()).AsStrMap()
 	if err != nil {
 		return events.LambdaFunctionURLResponse{}, err
 	}
-
-	var all []Cow
-	if err := attributevalue.UnmarshalListOfMaps(out.Items, &all); err != nil {
-		return events.LambdaFunctionURLResponse{}, err
-	}
-	cows := []Cow{}
-	for _, c := range all {
+	cows := []json.RawMessage{}
+	for _, v := range all {
+		var c cow
+		if err := json.Unmarshal([]byte(v), &c); err != nil {
+			continue
+		}
 		if t, err := time.Parse(time.RFC3339Nano, c.Time); err == nil && time.Since(t) < staleAfter {
-			cows = append(cows, c)
+			cows = append(cows, json.RawMessage(v))
 		}
 	}
 
