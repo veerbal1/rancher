@@ -21,16 +21,9 @@ resource "aws_iam_role_policy_attachment" "api_logs" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-resource "aws_iam_role_policy" "api_dynamodb" {
-  role = aws_iam_role.api.id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = "dynamodb:Query"
-      Resource = aws_dynamodb_table.cow_positions.arn
-    }]
-  })
+resource "aws_iam_role_policy_attachment" "api_vpc" {
+  role       = aws_iam_role.api.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
 resource "aws_lambda_function" "api" {
@@ -44,9 +37,16 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      TABLE_NAME = aws_dynamodb_table.cow_positions.name
+      VALKEY_ADDR = local.valkey_addr
     }
   }
+
+  vpc_config {
+    subnet_ids         = data.aws_subnets.default.ids
+    security_group_ids = [aws_security_group.lambda_vpc.id]
+  }
+
+  depends_on = [aws_iam_role_policy_attachment.api_vpc]
 }
 
 # Public URL (no auth) so the browser UI can read simulated cow positions.
