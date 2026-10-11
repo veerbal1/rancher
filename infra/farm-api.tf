@@ -25,19 +25,17 @@ resource "aws_iam_role_policy" "farm_api_dynamodb" {
   role = aws_iam_role.farm_api.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = ["dynamodb:PutItem", "dynamodb:Scan", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:GetItem"]
-        Resource = aws_dynamodb_table.rancher.arn
-      },
-      {
-        Effect   = "Allow"
-        Action   = ["dynamodb:Query"]
-        Resource = aws_dynamodb_table.cow_positions.arn
-      },
-    ]
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["dynamodb:PutItem", "dynamodb:Scan", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:GetItem"]
+      Resource = aws_dynamodb_table.rancher.arn
+    }]
   })
+}
+
+resource "aws_iam_role_policy_attachment" "farm_api_vpc" {
+  role       = aws_iam_role.farm_api.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
 resource "aws_lambda_function" "farm_api" {
@@ -51,10 +49,17 @@ resource "aws_lambda_function" "farm_api" {
 
   environment {
     variables = {
-      TABLE_NAME     = aws_dynamodb_table.rancher.name
-      COW_TABLE_NAME = aws_dynamodb_table.cow_positions.name
+      TABLE_NAME  = aws_dynamodb_table.rancher.name
+      VALKEY_ADDR = local.valkey_addr
     }
   }
+
+  vpc_config {
+    subnet_ids         = data.aws_subnets.default.ids
+    security_group_ids = [aws_security_group.lambda_vpc.id]
+  }
+
+  depends_on = [aws_iam_role_policy_attachment.farm_api_vpc]
 }
 
 resource "aws_apigatewayv2_api" "farm" {
