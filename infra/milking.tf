@@ -10,11 +10,18 @@ resource "aws_lambda_function" "milking" {
 
   environment {
     variables = {
-      TABLE_NAME     = aws_dynamodb_table.rancher.name
-      COW_TABLE_NAME = aws_dynamodb_table.cow_positions.name
-      MODE           = "milking"
+      TABLE_NAME  = aws_dynamodb_table.rancher.name
+      VALKEY_ADDR = local.valkey_addr
+      MODE        = "milking"
     }
   }
+
+  vpc_config {
+    subnet_ids         = data.aws_subnets.default.ids
+    security_group_ids = [aws_security_group.lambda_vpc.id]
+  }
+
+  depends_on = [aws_iam_role_policy_attachment.farm_api_vpc]
 }
 
 resource "aws_cloudwatch_event_rule" "milking" {
