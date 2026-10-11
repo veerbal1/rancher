@@ -42,7 +42,13 @@ func main() {
 
 func handle(ctx context.Context, in events.KinesisEvent) error {
 	latest := map[string]map[string]json.RawMessage{}
-	for _, r := range in.Records {
+	seen := map[string]bool{}
+	for i := len(in.Records) - 1; i >= 0; i-- {
+		r := in.Records[i]
+		if seen[r.Kinesis.PartitionKey] {
+			continue
+		}
+		seen[r.Kinesis.PartitionKey] = true
 		cows, err := telemetry.Decode(r.Kinesis.Data)
 		if err != nil {
 			log.Printf("skip bad record: %v", err)
