@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/valkey-io/valkey-go"
 )
 
 type Location struct {
@@ -39,9 +41,9 @@ type farmerItem struct {
 }
 
 var (
-	db       *dynamodb.Client
-	table    = os.Getenv("TABLE_NAME")
-	cowTable = os.Getenv("COW_TABLE_NAME")
+	db    *dynamodb.Client
+	cache valkey.Client
+	table = os.Getenv("TABLE_NAME")
 )
 
 func main() {
@@ -50,6 +52,13 @@ func main() {
 		log.Fatalf("aws config: %v", err)
 	}
 	db = dynamodb.NewFromConfig(cfg)
+	if cache, err = valkey.NewClient(valkey.ClientOption{
+		InitAddress:  []string{os.Getenv("VALKEY_ADDR")},
+		TLSConfig:    &tls.Config{},
+		DisableCache: true,
+	}); err != nil {
+		log.Printf("valkey: %v", err)
+	}
 	if os.Getenv("MODE") == "milking" {
 		lambda.Start(runMilking)
 		return
