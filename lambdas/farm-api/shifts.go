@@ -21,7 +21,7 @@ import (
 const (
 	shiftLeadTime      = 10 * time.Second
 	shiftWalkMS        = 0.8
-	shiftGrace         = 3 * time.Minute
+	shiftGrace         = 30 * time.Minute
 	shiftStartupGrace  = 30 * time.Second
 	readingFreshFor    = 10 * time.Second
 	maxCollarsPerShift = 98
@@ -92,26 +92,14 @@ func busyCollars(shifts []Shift, collarIDs []string, now time.Time, moving map[s
 }
 
 func movingCollars(ctx context.Context, farmerID string, now time.Time) (map[string]bool, error) {
+	readings, err := cowReadings(ctx, farmerID)
+	if err != nil {
+		return nil, err
+	}
 	moving := map[string]bool{}
-	pages := dynamodb.NewQueryPaginator(db, &dynamodb.QueryInput{
-		TableName:                aws.String(cowTable),
-		KeyConditionExpression:   aws.String("farmer_id = :f"),
-		ProjectionExpression:     aws.String("collar_id, #s, #t"),
-		ExpressionAttributeNames: map[string]string{"#s": "state", "#t": "time"},
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":f": &types.AttributeValueMemberS{Value: farmerID},
-		},
-	})
-	for pages.HasMorePages() {
-		page, err := pages.NextPage(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, item := range page.Items {
-			at, err := time.Parse(time.RFC3339Nano, stringAttr(item["time"]))
-			if err == nil && now.Sub(at) < readingFreshFor && stringAttr(item["state"]) == "moving" {
-				moving[stringAttr(item["collar_id"])] = true
-			}
+	for id, r := range readings {
+		if now.Sub(r.At) < readingFreshFor && r.State == "moving" {
+			moving[id] = true
 		}
 	}
 	return moving, nil
