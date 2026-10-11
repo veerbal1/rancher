@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log"
 	"sort"
@@ -368,38 +369,29 @@ func collarPaddocks(ctx context.Context, farmerID string) (map[string]string, er
 }
 
 func cowReadings(ctx context.Context, farmerID string) (map[string]cowReading, error) {
-	readings := map[string]cowReading{}
-	pages := dynamodb.NewQueryPaginator(db, &dynamodb.QueryInput{
-		TableName:                aws.String(cowTable),
-		KeyConditionExpression:   aws.String("farmer_id = :f"),
-		ProjectionExpression:     aws.String("collar_id, lat, lng, #s, #t"),
-		ExpressionAttributeNames: map[string]string{"#s": "state", "#t": "time"},
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":f": &types.AttributeValueMemberS{Value: farmerID},
-		},
-	})
-	for pages.HasMorePages() {
-		page, err := pages.NextPage(ctx)
+	if cache == nil {
+		return nil, errors.New("valkey is not connected")
+	}
+	all, err := cache.Do(ctx, cache.B().Hgetall().Key("farm:"+farmerID).Build()).AsStrMap()
+	if err != nil {
+		return nil, err
+	}
+	readings := make(map[string]cowReading, len(all))
+	for collarID, v := range all {
+		var r struct {
+			Lat   float64 `json:"lat"`
+			Lng   float64 `json:"lng"`
+			State string  `json:"state"`
+			Time  string  `json:"time"`
+		}
+		if err := json.Unmarshal([]byte(v), &r); err != nil {
+			continue
+		}
+		at, err := time.Parse(time.RFC3339Nano, r.Time)
 		if err != nil {
-			return nil, err
+			continue
 		}
-		for _, item := range page.Items {
-			var r struct {
-				CollarID string  `dynamodbav:"collar_id"`
-				Lat      float64 `dynamodbav:"lat"`
-				Lng      float64 `dynamodbav:"lng"`
-				State    string  `dynamodbav:"state"`
-				Time     string  `dynamodbav:"time"`
-			}
-			if err := attributevalue.UnmarshalMap(item, &r); err != nil {
-				return nil, err
-			}
-			at, err := time.Parse(time.RFC3339Nano, r.Time)
-			if err != nil {
-				continue
-			}
-			readings[r.CollarID] = cowReading{Lng: r.Lng, Lat: r.Lat, State: r.State, At: at}
-		}
+		readings[collarID] = cowReading{Lng: r.Lng, Lat: r.Lat, State: r.State, At: at}
 	}
 	return readings, nil
 }
