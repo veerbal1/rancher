@@ -2,22 +2,24 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"encoding/json"
 	"log"
 	"os"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/valkey-io/valkey-go"
 	"github.com/veerbal1/rancher/telemetry"
 )
 
+const farmTTLSecs = 60
+
 var (
-	db     *dynamodb.Client
+	cache  valkey.Client
 	roster *telemetry.Roster
-	table  = os.Getenv("TABLE_NAME")
 )
 
 func main() {
@@ -25,13 +27,20 @@ func main() {
 	if err != nil {
 		log.Fatalf("aws config: %v", err)
 	}
-	db = dynamodb.NewFromConfig(cfg)
-	roster = telemetry.NewRoster(db, os.Getenv("RANCHER_TABLE"))
+	roster = telemetry.NewRoster(dynamodb.NewFromConfig(cfg), os.Getenv("RANCHER_TABLE"))
+	cache, err = valkey.NewClient(valkey.ClientOption{
+		InitAddress:  []string{os.Getenv("VALKEY_ADDR")},
+		TLSConfig:    &tls.Config{},
+		DisableCache: true,
+	})
+	if err != nil {
+		log.Fatalf("valkey: %v", err)
+	}
 	lambda.Start(handle)
 }
 
 func handle(ctx context.Context, in events.KinesisEvent) error {
-	latest := map[string]telemetry.Event{}
+	farms := map[string]map[string]telemetry.Event{}
 	for _, r := range in.Records {
 		cows, err := telemetry.Decode(r.Kinesis.Data)
 		if err != nil {
@@ -42,33 +51,36 @@ func handle(ctx context.Context, in events.KinesisEvent) error {
 			return err
 		}
 		for _, e := range cows {
-			if e.FarmerID != "" && e.CollarID != "" {
-				latest[e.CollarID] = e
+			if e.FarmerID == "" || e.CollarID == "" {
+				continue
 			}
+			if farms[e.FarmerID] == nil {
+				farms[e.FarmerID] = map[string]telemetry.Event{}
+			}
+			farms[e.FarmerID][e.CollarID] = e
 		}
 	}
 
-	writes := make([]types.WriteRequest, 0, len(latest))
-	for _, e := range latest {
-		item, err := attributevalue.MarshalMap(e)
-		if err != nil {
-			return err
-		}
-		writes = append(writes, types.WriteRequest{PutRequest: &types.PutRequest{Item: item}})
-	}
-
-	for i := 0; i < len(writes); i += 25 {
-		pending := writes[i:min(i+25, len(writes))]
-		for len(pending) > 0 {
-			out, err := db.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
-				RequestItems: map[string][]types.WriteRequest{table: pending},
-			})
+	saved := 0
+	for farmerID, byCollar := range farms {
+		hset := cache.B().Hset().Key("farm:" + farmerID).FieldValue()
+		for collarID, e := range byCollar {
+			b, err := json.Marshal(e)
 			if err != nil {
 				return err
 			}
-			pending = out.UnprocessedItems[table]
+			hset = hset.FieldValue(collarID, string(b))
 		}
+		for _, resp := range cache.DoMulti(ctx,
+			hset.Build(),
+			cache.B().Expire().Key("farm:"+farmerID).Seconds(farmTTLSecs).Build(),
+		) {
+			if err := resp.Error(); err != nil {
+				return err
+			}
+		}
+		saved += len(byCollar)
 	}
-	log.Printf("saved %d cows from %d records", len(writes), len(in.Records))
+	log.Printf("saved %d cows from %d records", saved, len(in.Records))
 	return nil
 }
