@@ -31,10 +31,22 @@ resource "aws_lambda_function" "ingest" {
   source_code_hash = data.archive_file.ingest.output_base64sha256
   environment {
     variables = {
-      TABLE_NAME    = aws_dynamodb_table.cow_positions.name
       RANCHER_TABLE = aws_dynamodb_table.rancher.name
+      VALKEY_ADDR   = local.valkey_addr
     }
   }
+
+  vpc_config {
+    subnet_ids         = data.aws_subnets.default.ids
+    security_group_ids = [aws_security_group.lambda_vpc.id]
+  }
+
+  depends_on = [aws_iam_role_policy_attachment.ingest_vpc]
+}
+
+resource "aws_iam_role_policy_attachment" "ingest_vpc" {
+  role       = aws_iam_role.ingest.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
 resource "aws_iam_role_policy_attachment" "ingest_kinesis" {
@@ -43,9 +55,12 @@ resource "aws_iam_role_policy_attachment" "ingest_kinesis" {
 }
 
 resource "aws_lambda_event_source_mapping" "ingest" {
-  event_source_arn  = aws_kinesis_stream.cow_events.arn
-  function_name     = aws_lambda_function.ingest.arn
-  starting_position = "LATEST"
+  event_source_arn               = aws_kinesis_stream.cow_events.arn
+  function_name                  = aws_lambda_function.ingest.arn
+  starting_position              = "LATEST"
+  maximum_record_age_in_seconds  = 60
+  maximum_retry_attempts         = 2
+  bisect_batch_on_function_error = true
 
   depends_on = [aws_iam_role_policy_attachment.ingest_kinesis]
 }
@@ -71,17 +86,10 @@ resource "aws_iam_role_policy" "ingest_dynamodb" {
   role = aws_iam_role.ingest.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = ["dynamodb:PutItem", "dynamodb:BatchWriteItem"]
-        Resource = aws_dynamodb_table.cow_positions.arn
-      },
-      {
-        Effect   = "Allow"
-        Action   = "dynamodb:Query"
-        Resource = aws_dynamodb_table.rancher.arn
-      },
-    ]
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "dynamodb:Query"
+      Resource = aws_dynamodb_table.rancher.arn
+    }]
   })
 }
