@@ -189,6 +189,8 @@ resource "aws_lambda_function" "push" {
   runtime          = "provided.al2023"
   handler          = "bootstrap"
   architectures    = ["arm64"]
+  timeout          = 10
+  memory_size      = 512
   filename         = data.archive_file.push.output_path
   source_code_hash = data.archive_file.push.output_base64sha256
 
@@ -202,9 +204,12 @@ resource "aws_lambda_function" "push" {
 }
 
 resource "aws_lambda_event_source_mapping" "push" {
-  event_source_arn  = aws_kinesis_stream.cow_events.arn
-  function_name     = aws_lambda_function.push.arn
-  starting_position = "LATEST"
+  event_source_arn               = aws_kinesis_stream.cow_events.arn
+  function_name                  = aws_lambda_function.push.arn
+  starting_position              = "LATEST"
+  maximum_record_age_in_seconds  = 60
+  maximum_retry_attempts         = 2
+  bisect_batch_on_function_error = true
 
   depends_on = [aws_iam_role_policy_attachment.push_kinesis]
 }
