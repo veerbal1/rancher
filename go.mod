@@ -10,6 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/apigatewaymanagementapi v1.39.0
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.69.1
 	github.com/aws/aws-sdk-go-v2/service/kinesis v1.56.1
+	github.com/valkey-io/valkey-go v1.0.78
 	google.golang.org/protobuf v1.36.12
 )
 
@@ -29,4 +30,5 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.43.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.51.1 // indirect
 	github.com/aws/smithy-go v1.28.1 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 )
