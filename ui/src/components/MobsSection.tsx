@@ -17,7 +17,7 @@ import type { Collar } from '@/useCollars'
 import type { Paddock } from '@/usePaddocks'
 import type { Lane } from '@/useLanes'
 import { MOB_COLORS, mobInitials, type Mob } from '@/useMobs'
-import { MoveHerdDialog } from './MoveHerdDialog'
+import { MoveHerdDialog, type MoveMode } from './MoveHerdDialog'
 
 type Props = {
   mobs: Mob[]
@@ -26,7 +26,7 @@ type Props = {
   lanes: Lane[]
   canAdd: boolean
   onCreate: (name: string, color: string) => Promise<unknown>
-  onMove: (fromId: string, toId: string, useSavedLane: boolean, collarIds: string[]) => void
+  onMove: (fromId: string, toId: string, mode: MoveMode, collarIds: string[]) => void
 }
 
 export function MobsSection({ mobs, collars, paddocks, lanes, canAdd, onCreate, onMove }: Props) {
@@ -66,7 +66,7 @@ export function MobsSection({ mobs, collars, paddocks, lanes, canAdd, onCreate, 
                       cowCount={n}
                       mobName={m.name}
                       lanes={lanes}
-                      onPick={(toId, useSavedLane) => onMove(from.id, toId, useSavedLane, members.map((c) => c.id))}
+                      onPick={(toId, mode) => onMove(from.id, toId, mode, members.map((c) => c.id))}
                     />
                   ) : (
                     <Button variant="outline" size="sm" disabled>
