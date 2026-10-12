@@ -8,7 +8,7 @@ import type { Lane } from '@/useLanes'
 import type { Mob } from '@/useMobs'
 import type { MilkingSession, SessionCow } from '@/useMilking'
 import { BatteryLevel } from './CollarsSection'
-import { MoveHerdDialog } from './MoveHerdDialog'
+import { MoveHerdDialog, type MoveMode } from './MoveHerdDialog'
 import { AddToMobDialog } from './AddToMobDialog'
 
 type Props = {
@@ -19,7 +19,7 @@ type Props = {
   lanes: Lane[]
   mobs: Mob[]
   milking?: MilkingSession
-  onMove: (toPaddockId: string, useSavedLane: boolean) => void
+  onMove: (toPaddockId: string, mode: MoveMode) => void
   onAddToMob: (mob: Mob) => Promise<void>
   onClose: () => void
 }
