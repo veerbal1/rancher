@@ -21,7 +21,7 @@ import { KINDS, usePaddocks, type PaddockKind } from './usePaddocks'
 import { useCollars, type Collar } from './useCollars'
 import { useActiveShifts, useShifts, type Shift } from './useShifts'
 import { useLanes } from './useLanes'
-import { useMobs } from './useMobs'
+import { useMobs, type Mob } from './useMobs'
 import { useMilking, type MilkingSchedule } from './useMilking'
 import { useCueSound } from './useCueSound'
 import { useFarmSounds } from './useFarmSounds'
@@ -51,7 +51,7 @@ function App() {
   const { paddocks, error: paddocksError, createPaddock, updatePaddock, deletePaddock } = usePaddocks(selectedFarmerId)
   const [selectedPaddockId, setSelectedPaddockId] = useState<string | null>(null)
   const [selectedCollarId, setSelectedCollarId] = useState<string | null>(null)
-  const { collars, error: collarsError, buyCollars, assignCollars, deleteCollars, moveLocally, forgetPaddock } = useCollars(selectedFarmerId)
+  const { collars, error: collarsError, buyCollars, assignCollars, deleteCollars, addToMob, moveLocally, forgetPaddock } = useCollars(selectedFarmerId)
   const { shifts, error: shiftsError, startShift, turnBack } = useShifts(selectedFarmerId)
   const { lanes, error: lanesError, saveLane } = useLanes(selectedFarmerId)
   const { mobs, error: mobsError, createMob } = useMobs(selectedFarmerId)
@@ -68,6 +68,15 @@ function App() {
   const selectedPaddock = paddocks.find((p) => p.id === selectedPaddockId)
   const selectedCollar = collars.find((c) => c.id === selectedCollarId)
   const closeCowPanel = useCallback(() => setSelectedCollarId(null), [])
+  const cowColors = useMemo(() => {
+    const byMob = new Map(mobs.map((m) => [m.id, m.color]))
+    const out: Record<string, string> = {}
+    for (const c of collars) {
+      const color = c.mob_id && byMob.get(c.mob_id)
+      if (color) out[c.id] = color
+    }
+    return out
+  }, [collars, mobs])
   const overlaps = useMemo(() => (draftRing ? findOverlaps(draftRing, paddocks) : []), [draftRing, paddocks])
   const reshapeOverlaps = useMemo(
     () => (reshape ? findOverlaps(reshape.ring, paddocks.filter((p) => p.id !== reshape.id)) : []),
@@ -323,6 +332,11 @@ function App() {
     toast.success(`${collarsLabel(list)} unassigned`)
   }
 
+  const addCollarsToMob = async (list: Collar[], mob: Mob) => {
+    await addToMob(list.map((c) => c.id), mob.id)
+    toast.success(`${collarsLabel(list)} added to ${mob.name}`)
+  }
+
   const handleMapClick = (e: MapLayerMouseEvent) => {
     const cow = e.features?.find((f) => f.source === 'cows')
     if (cow) {
@@ -350,7 +364,7 @@ function App() {
         <PaddocksLayer paddocks={reshape ? paddocks.filter((p) => p.id !== reshape.id) : paddocks} selectedId={selectedPaddockId} />
         {draftRing && <DraftPaddockLayer ring={draftRing} />}
         <LanesLayer lanes={liveLanes} />
-        <CowsLayer cows={cows} selectedId={selectedCollarId} />
+        <CowsLayer cows={cows} colors={cowColors} selectedId={selectedCollarId} />
         <ShiftLayer shifts={activeShifts} />
         <PaddockLabelsLayer selectedId={selectedPaddockId} />
         <DrawPaddock active={drawingPaddock} onFinish={handlePaddockDrawn} />
@@ -410,8 +424,10 @@ function App() {
           paddock={paddocks.find((p) => p.id === selectedCollar.paddock_id)}
           paddocks={paddocks}
           lanes={liveLanes}
+          mobs={mobs}
           milking={runningMilking}
           onMove={startMovingCow}
+          onAddToMob={(mob) => addCollarsToMob([selectedCollar], mob)}
           onClose={closeCowPanel}
         />
       )}
@@ -468,8 +484,8 @@ function App() {
             onSaveSchedule={saveMilkingSchedule}
           />
         )}
-        <MobsSection mobs={mobs} canAdd={!!selectedFarmer} onCreate={createMob} />
-        <CollarsSection collars={collars} cows={cows} paddocks={paddocks} canAdd={!!selectedFarmer} onAdd={addCollars} onDelete={removeCollars} onUnassign={unassignCollars} selectedId={selectedCollarId} onSelect={setSelectedCollarId} milking={runningMilking} />
+        <MobsSection mobs={mobs} collars={collars} paddocks={paddocks} lanes={liveLanes} canAdd={!!selectedFarmer} onCreate={createMob} onMove={beginMove} />
+        <CollarsSection collars={collars} cows={cows} paddocks={paddocks} mobs={mobs} canAdd={!!selectedFarmer} onAdd={addCollars} onDelete={removeCollars} onUnassign={unassignCollars} onAddToMob={addCollarsToMob} selectedId={selectedCollarId} onSelect={setSelectedCollarId} milking={runningMilking} />
       </MenuPanel>
 
       <Toaster theme="light" position="top-center" />
