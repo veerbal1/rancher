@@ -26,6 +26,7 @@ type Collar struct {
 	Number    int     `json:"number"     dynamodbav:"number"`
 	Name      string  `json:"name"       dynamodbav:"name"`
 	PaddockID *string `json:"paddock_id" dynamodbav:"paddock_id"`
+	MobID     *string `json:"mob_id"     dynamodbav:"mob_id"`
 	CreatedAt string  `json:"created_at" dynamodbav:"created_at"`
 }
 
