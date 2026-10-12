@@ -23,8 +23,10 @@ type Props = {
   mobName?: string
   disabled?: boolean
   lanes: Lane[]
-  onPick: (toPaddockId: string, useSavedLane: boolean) => void
+  onPick: (toPaddockId: string, mode: MoveMode) => void
 }
+
+export type MoveMode = 'draw' | 'lane' | 'raceways'
 
 export function MoveHerdDialog({ paddock, paddocks, cowCount, cowName, mobName, disabled, lanes, onPick }: Props) {
   const [open, setOpen] = useState(false)
@@ -38,11 +40,13 @@ export function MoveHerdDialog({ paddock, paddocks, cowCount, cowName, mobName, 
   }
 
   const saved = !!toId && !!laneBetween(lanes, paddock.id, toId)
+  const gated = (id: string | null) => (paddocks.find((p) => p.id === id)?.gates?.length ?? 0) > 0
+  const roads = !!toId && gated(paddock.id) && gated(toId)
 
-  const pick = (useSavedLane: boolean) => {
+  const pick = (mode: MoveMode) => {
     if (!toId) return
     setOpen(false)
-    onPick(toId, useSavedLane)
+    onPick(toId, mode)
   }
 
   return (
@@ -93,18 +97,17 @@ export function MoveHerdDialog({ paddock, paddocks, cowCount, cowName, mobName, 
 
         <DialogFooter>
           <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
-          {saved ? (
-            <>
-              <Button variant="outline" className="cursor-pointer" onClick={() => pick(false)}>
-                Draw new path
-              </Button>
-              <Button className="cursor-pointer" onClick={() => pick(true)}>
-                Use saved lane
-              </Button>
-            </>
-          ) : (
-            <Button className="cursor-pointer" disabled={!toId} onClick={() => pick(false)}>
-              Draw path
+          <Button variant={roads || saved ? 'outline' : 'default'} className="cursor-pointer" disabled={!toId} onClick={() => pick('draw')}>
+            {saved ? 'Draw new path' : 'Draw path'}
+          </Button>
+          {saved && (
+            <Button variant={roads ? 'outline' : 'default'} className="cursor-pointer" onClick={() => pick('lane')}>
+              Use saved lane
+            </Button>
+          )}
+          {roads && (
+            <Button className="cursor-pointer" onClick={() => pick('raceways')}>
+              Use raceways
             </Button>
           )}
         </DialogFooter>
