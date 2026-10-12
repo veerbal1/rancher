@@ -10,6 +10,8 @@ import { ShiftLayer } from './map/ShiftLayer'
 import { DrawPaddock } from './map/DrawPaddock'
 import { DrawRaceway } from './map/DrawRaceway'
 import { RacewaysLayer } from './map/RacewaysLayer'
+import { GatesLayer } from './map/GatesLayer'
+import { PlaceGate } from './map/PlaceGate'
 import { DraftPaddockLayer } from './map/DraftPaddockLayer'
 import { FarmBoundaryLayer } from './map/FarmBoundaryLayer'
 import { DrawPath } from './map/DrawPath'
@@ -20,7 +22,7 @@ import { toLngLat, type LngLat } from './map/geo'
 import { findOverlaps } from './map/overlap'
 import { useCows } from './useCows'
 import { useFarmers, type Location } from './useFarmers'
-import { KINDS, usePaddocks, type PaddockKind } from './usePaddocks'
+import { KINDS, usePaddocks, type Gate, type PaddockKind } from './usePaddocks'
 import { useCollars, type Collar } from './useCollars'
 import { useActiveShifts, useShifts, type Shift } from './useShifts'
 import { useLanes } from './useLanes'
@@ -58,7 +60,8 @@ function App() {
   const [drawingRaceway, setDrawingRaceway] = useState(false)
   const [racewayDraft, setRacewayDraft] = useState<LngLat[] | null>(null)
   const [racewayWidth, setRacewayWidth] = useState(5)
-  const { paddocks, error: paddocksError, createPaddock, updatePaddock, deletePaddock } = usePaddocks(selectedFarmerId)
+  const [placingGate, setPlacingGate] = useState(false)
+  const { paddocks, error: paddocksError, createPaddock, updatePaddock, deletePaddock, addGate, deleteGate } = usePaddocks(selectedFarmerId)
   const [selectedPaddockId, setSelectedPaddockId] = useState<string | null>(null)
   const [selectedCollarId, setSelectedCollarId] = useState<string | null>(null)
   const { collars, error: collarsError, buyCollars, assignCollars, deleteCollars, addToMob, moveLocally, forgetPaddock } = useCollars(selectedFarmerId)
@@ -121,7 +124,8 @@ function App() {
     [reshape, paddocks],
   )
   const reshaping = paddocks.find((p) => p.id === reshape?.id)
-  const busyOnMap = drawingPaddock || drawingBoundary || drawingRaceway || !!pathDraft || !!reshape
+  const placing = placingGate && !!selectedPaddock
+  const busyOnMap = drawingPaddock || drawingBoundary || drawingRaceway || placing || !!pathDraft || !!reshape
 
   const error = cowsError || farmersError || paddocksError || collarsError || shiftsError || lanesError || racewaysError || mobsError || milkingError
   const shedSession = sessions.find((s) => s.status === 'running' && s.shed_id === selectedPaddock?.id)
@@ -207,6 +211,30 @@ function App() {
     await createRaceway(racewayDraft, racewayWidth)
     setRacewayDraft(null)
     toast.success('Raceway saved')
+  }
+
+  const placeGate = useCallback(
+    async (at: LngLat) => {
+      if (!selectedPaddockId) return
+      try {
+        const paddock = await addGate(selectedPaddockId, at)
+        setPlacingGate(false)
+        toast.success(`${paddock.gates?.at(-1)?.name ?? 'Gate'} added to ${paddock.name}`)
+      } catch (err) {
+        toast.error('Could not add the gate', { description: err instanceof Error ? err.message : String(err) })
+      }
+    },
+    [selectedPaddockId, addGate],
+  )
+
+  const removeGate = async (gate: Gate) => {
+    if (!selectedPaddockId) return
+    try {
+      await deleteGate(selectedPaddockId, gate.id)
+      toast.success(`${gate.name} deleted`)
+    } catch (err) {
+      toast.error('Could not delete the gate', { description: err instanceof Error ? err.message : String(err) })
+    }
   }
 
   const removeRaceway = async (r: Raceway) => {
@@ -459,6 +487,8 @@ function App() {
         {boundaryRing && <FarmBoundaryLayer ring={boundaryRing} />}
         <PaddocksLayer paddocks={reshape ? paddocks.filter((p) => p.id !== reshape.id) : paddocks} selectedId={selectedPaddockId} />
         <RacewaysLayer roads={roads} />
+        <GatesLayer paddocks={paddocks} />
+        <PlaceGate ring={placing ? (selectedPaddock?.polygon.coordinates[0] ?? null) : null} onPick={placeGate} />
         {draftRing && <DraftPaddockLayer ring={draftRing} />}
         <LanesLayer lanes={liveLanes} />
         <CowsLayer cows={cows} colors={cowColors} selectedId={selectedCollarId} />
@@ -578,6 +608,10 @@ function App() {
             onAssignCollars={saveCollarAssignment}
             onMoveHerd={startDrawingPath}
             onDrawLane={startDrawingLane}
+            placingGate={placingGate}
+            onStartGate={() => setPlacingGate(true)}
+            onCancelGate={() => setPlacingGate(false)}
+            onDeleteGate={removeGate}
           />
         )}
         {selectedPaddock?.kind === 'milking_shed' && (
