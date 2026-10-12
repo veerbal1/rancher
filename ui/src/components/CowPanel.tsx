@@ -33,7 +33,7 @@ const MILKING_TEXT: Record<SessionCow['status'], string> = {
 }
 
 const STATE_COLORS: Record<string, string> = {
-  inside: 'bg-emerald-600',
+  inside: 'bg-primary',
   warning: 'bg-amber-500',
   breached: 'bg-red-500',
   moving: 'bg-blue-500',
