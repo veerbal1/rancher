@@ -52,7 +52,7 @@ export function PaddocksLayer({ paddocks, selectedId }: Props) {
       type: 'FeatureCollection',
       features: paddocks.map((p) => ({
         type: 'Feature',
-        properties: { id: p.id, name: p.name, area_ha: p.area_ha, kind: p.kind ?? 'paddock', capacity: p.capacity ?? 0 },
+        properties: { id: p.id, name: p.name, label: p.name.replace(/^Paddock #/, ''), area_ha: p.area_ha, kind: p.kind ?? 'paddock', capacity: p.capacity ?? 0 },
         geometry: p.polygon,
       })),
     }),
@@ -67,7 +67,7 @@ export function PaddocksLayer({ paddocks, selectedId }: Props) {
         id="paddocks-fill"
         type="fill"
         filter={['==', ['get', 'kind'], 'paddock']}
-        paint={{ 'fill-color': '#e3fdcb', 'fill-opacity': ['case', isSelected, 0.4, 0.15] }}
+        paint={{ 'fill-color': ['case', isSelected, '#294e3b', '#e3fdcb'], 'fill-opacity': ['case', isSelected, 0.55, 0.15] }}
       />
       <Layer
         id="sheds-fill"
@@ -82,7 +82,7 @@ export function PaddocksLayer({ paddocks, selectedId }: Props) {
         id="paddocks-outline"
         type="line"
         paint={{
-          'line-color': ['case', isSelected, '#ffd166', ['==', ['get', 'kind'], 'milking_shed'], '#8a8a84', '#ffffff'],
+          'line-color': ['case', isSelected, '#e3fdcb', ['==', ['get', 'kind'], 'milking_shed'], '#8a8a84', '#ffffff'],
           'line-width': ['case', isSelected, 3, 1.5],
         }}
       />
