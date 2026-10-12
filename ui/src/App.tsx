@@ -9,6 +9,7 @@ import { LanesLayer } from './map/LanesLayer'
 import { ShiftLayer } from './map/ShiftLayer'
 import { DrawPaddock } from './map/DrawPaddock'
 import { DraftPaddockLayer } from './map/DraftPaddockLayer'
+import { FarmBoundaryLayer } from './map/FarmBoundaryLayer'
 import { DrawPath } from './map/DrawPath'
 import { EditPaddock } from './map/EditPaddock'
 import { PaddocksLayer } from './map/PaddocksLayer'
@@ -43,11 +44,13 @@ const INITIAL_BOUNDS: [LngLat, LngLat] = [toLngLat(-40, -40), toLngLat(140, 140)
 
 function App() {
   const { main: map } = useMap()
-  const { farmers, error: farmersError, createFarmer } = useFarmers()
+  const { farmers, error: farmersError, createFarmer, saveBoundary } = useFarmers()
   const [selectedFarmerId, setSelectedFarmerId] = useState<string | null>(null)
   const { cows, error: cowsError, live } = useCows(selectedFarmerId)
   const [drawingPaddock, setDrawingPaddock] = useState(false)
   const [draftRing, setDraftRing] = useState<LngLat[] | null>(null)
+  const [drawingBoundary, setDrawingBoundary] = useState(false)
+  const [boundaryDraft, setBoundaryDraft] = useState<LngLat[] | null>(null)
   const { paddocks, error: paddocksError, createPaddock, updatePaddock, deletePaddock } = usePaddocks(selectedFarmerId)
   const [selectedPaddockId, setSelectedPaddockId] = useState<string | null>(null)
   const [selectedCollarId, setSelectedCollarId] = useState<string | null>(null)
@@ -65,6 +68,7 @@ function App() {
   useFarmSounds(map, cows, soundOn)
 
   const selectedFarmer = farmers.find((f) => f.id === selectedFarmerId)
+  const boundaryRing = boundaryDraft ?? selectedFarmer?.boundary?.coordinates[0]
   const selectedPaddock = paddocks.find((p) => p.id === selectedPaddockId)
   const selectedCollar = collars.find((c) => c.id === selectedCollarId)
   const closeCowPanel = useCallback(() => setSelectedCollarId(null), [])
@@ -83,7 +87,7 @@ function App() {
     [reshape, paddocks],
   )
   const reshaping = paddocks.find((p) => p.id === reshape?.id)
-  const busyOnMap = drawingPaddock || !!pathDraft || !!reshape
+  const busyOnMap = drawingPaddock || drawingBoundary || !!pathDraft || !!reshape
 
   const error = cowsError || farmersError || paddocksError || collarsError || shiftsError || lanesError || mobsError || milkingError
   const shedSession = sessions.find((s) => s.status === 'running' && s.shed_id === selectedPaddock?.id)
@@ -107,6 +111,8 @@ function App() {
     setSelectedCollarId(null)
     setDraftRing(null)
     setDrawingPaddock(false)
+    setBoundaryDraft(null)
+    setDrawingBoundary(false)
   }
 
   const handleCreateFarmer = async (name: string, location: Location) => {
@@ -123,7 +129,29 @@ function App() {
   const startDrawingPaddock = () => {
     setSelectedPaddockId(null)
     setDraftRing(null)
+    setBoundaryDraft(null)
+    setDrawingBoundary(false)
     setDrawingPaddock(true)
+  }
+
+  const handleBoundaryDrawn = useCallback((ring: LngLat[]) => {
+    setBoundaryDraft(ring)
+    setDrawingBoundary(false)
+  }, [])
+
+  const startDrawingBoundary = () => {
+    setSelectedPaddockId(null)
+    setDraftRing(null)
+    setDrawingPaddock(false)
+    setBoundaryDraft(null)
+    setDrawingBoundary(true)
+  }
+
+  const saveBoundaryDraft = async () => {
+    if (!selectedFarmer || !boundaryDraft) return
+    await saveBoundary(selectedFarmer.id, boundaryDraft)
+    setBoundaryDraft(null)
+    toast.success('Farm boundary saved')
   }
 
   const saveDraftPaddock = async () => {
@@ -361,6 +389,7 @@ function App() {
         interactiveLayerIds={busyOnMap ? [] : ['cow-rings', 'paddocks-fill', 'sheds-fill']}
         onClick={busyOnMap ? undefined : handleMapClick}
       >
+        {boundaryRing && <FarmBoundaryLayer ring={boundaryRing} />}
         <PaddocksLayer paddocks={reshape ? paddocks.filter((p) => p.id !== reshape.id) : paddocks} selectedId={selectedPaddockId} />
         {draftRing && <DraftPaddockLayer ring={draftRing} />}
         <LanesLayer lanes={liveLanes} />
@@ -368,6 +397,7 @@ function App() {
         <ShiftLayer shifts={activeShifts} />
         <PaddockLabelsLayer selectedId={selectedPaddockId} />
         <DrawPaddock active={drawingPaddock} onFinish={handlePaddockDrawn} />
+        <DrawPaddock active={drawingBoundary} onFinish={handleBoundaryDrawn} />
         <DrawPath active={!!pathDraft} onFinish={handlePathDrawn} />
         {reshaping && <EditPaddock key={reshaping.id} initialRing={reshaping.polygon.coordinates[0]} onChange={handleReshape} />}
       </SatelliteMap>
@@ -440,7 +470,17 @@ function App() {
           getLocation={getMapCenter}
           onCreate={handleCreateFarmer}
         />
-        {selectedFarmer && <SelectedFarmer farmer={selectedFarmer} />}
+        {selectedFarmer && (
+          <SelectedFarmer
+            farmer={selectedFarmer}
+            drawing={drawingBoundary}
+            hasDraft={!!boundaryDraft}
+            onStartDrawing={startDrawingBoundary}
+            onCancelDrawing={() => setDrawingBoundary(false)}
+            onDiscardDraft={() => setBoundaryDraft(null)}
+            onSaveDraft={saveBoundaryDraft}
+          />
+        )}
         <PaddocksSection
           paddocks={paddocks}
           selectedId={selectedPaddockId}
