@@ -119,6 +119,10 @@ func handle(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.API
 		return createMob(ctx, req.PathParameters["id"], req.Body)
 	case "GET /farmers/{id}/mobs":
 		return listMobs(ctx, req.PathParameters["id"])
+	case "POST /farmers/{id}/paddocks/{paddockId}/gates":
+		return addGate(ctx, req.PathParameters["id"], req.PathParameters["paddockId"], req.Body)
+	case "DELETE /farmers/{id}/paddocks/{paddockId}/gates/{gateId}":
+		return deleteGate(ctx, req.PathParameters["id"], req.PathParameters["paddockId"], req.PathParameters["gateId"])
 	case "POST /farmers/{id}/raceways":
 		return createRaceway(ctx, req.PathParameters["id"], req.Body)
 	case "GET /farmers/{id}/raceways":
