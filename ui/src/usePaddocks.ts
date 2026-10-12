@@ -9,6 +9,8 @@ export const KINDS: { value: PaddockKind; label: string }[] = [
   { value: 'rest_shed', label: 'Rest shed' },
 ]
 
+export type Gate = { id: string; name: string; lng: number; lat: number }
+
 export type Paddock = {
   id: string
   farmer_id: string
@@ -19,6 +21,7 @@ export type Paddock = {
   kind?: PaddockKind
   capacity?: number
   running_session?: string
+  gates?: Gate[]
   created_at: string
 }
 
@@ -95,5 +98,22 @@ export function usePaddocks(farmerId: string | null) {
     return body
   }
 
-  return { paddocks, error, createPaddock, updatePaddock, deletePaddock }
+  const gateRequest = async (paddockId: string, init: RequestInit, gateId = ''): Promise<Paddock> => {
+    if (!farmerId) throw new Error('no farmer selected')
+    const res = await fetch(
+      `${FARM_API_URL}/farmers/${encodeURIComponent(farmerId)}/paddocks/${encodeURIComponent(paddockId)}/gates${gateId ? `/${encodeURIComponent(gateId)}` : ''}`,
+      init,
+    )
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`)
+    setPaddocks((prev) => prev.map((p) => (p.id === paddockId ? body : p)))
+    return body
+  }
+
+  const addGate = (paddockId: string, at: LngLat) =>
+    gateRequest(paddockId, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ lng: at[0], lat: at[1] }) })
+
+  const deleteGate = (paddockId: string, gateId: string) => gateRequest(paddockId, { method: 'DELETE' }, gateId)
+
+  return { paddocks, error, createPaddock, updatePaddock, deletePaddock, addGate, deleteGate }
 }
