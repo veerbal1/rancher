@@ -5,9 +5,11 @@ import type { Collar } from '@/useCollars'
 import type { Cow } from '@/useCows'
 import type { Paddock } from '@/usePaddocks'
 import type { Lane } from '@/useLanes'
+import type { Mob } from '@/useMobs'
 import type { MilkingSession, SessionCow } from '@/useMilking'
 import { BatteryLevel } from './CollarsSection'
 import { MoveHerdDialog } from './MoveHerdDialog'
+import { AddToMobDialog } from './AddToMobDialog'
 
 type Props = {
   collar: Collar
@@ -15,8 +17,10 @@ type Props = {
   paddock?: Paddock
   paddocks: Paddock[]
   lanes: Lane[]
+  mobs: Mob[]
   milking?: MilkingSession
   onMove: (toPaddockId: string, useSavedLane: boolean) => void
+  onAddToMob: (mob: Mob) => Promise<void>
   onClose: () => void
 }
 
@@ -35,8 +39,9 @@ const STATE_COLORS: Record<string, string> = {
   moving: 'bg-blue-500',
 }
 
-export function CowPanel({ collar, cow, paddock, paddocks, lanes, milking, onMove, onClose }: Props) {
+export function CowPanel({ collar, cow, paddock, paddocks, lanes, mobs, milking, onMove, onAddToMob, onClose }: Props) {
   const milkingCow = milking?.cows.find((c) => c.collar_id === collar.id)
+  const mob = mobs.find((m) => m.id === collar.mob_id)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -62,6 +67,17 @@ export function CowPanel({ collar, cow, paddock, paddocks, lanes, milking, onMov
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
           <dt className="text-muted-foreground">Paddock</dt>
           <dd className="text-right">{paddock?.name ?? 'Unassigned'}</dd>
+          <dt className="text-muted-foreground">Mob</dt>
+          <dd className="flex items-center justify-end gap-1.5">
+            {mob ? (
+              <>
+                <span className="size-2 rounded-full" style={{ backgroundColor: mob.color }} />
+                {mob.name}
+              </>
+            ) : (
+              <span className="text-muted-foreground">None</span>
+            )}
+          </dd>
           <dt className="text-muted-foreground">State</dt>
           <dd className="flex items-center justify-end gap-1.5 capitalize">
             {cow ? (
@@ -113,6 +129,7 @@ export function CowPanel({ collar, cow, paddock, paddocks, lanes, milking, onMov
               Move to paddock
             </Button>
           )}
+          <AddToMobDialog mobs={mobs} count={1} cowName={collar.name} label={mob ? 'Change mob' : 'Add to mob'} onPick={onAddToMob} />
           <Button variant="outline" className="cursor-not-allowed" disabled>
             <History />
             View history
