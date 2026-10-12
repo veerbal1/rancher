@@ -18,6 +18,7 @@ import type { Paddock } from '@/usePaddocks'
 import type { Lane } from '@/useLanes'
 import { MOB_COLORS, mobInitials, type Mob } from '@/useMobs'
 import { MoveHerdDialog, type MoveMode } from './MoveHerdDialog'
+import { EditMobDialog, type MobPatch } from './EditMobDialog'
 
 type Props = {
   mobs: Mob[]
@@ -27,9 +28,10 @@ type Props = {
   canAdd: boolean
   onCreate: (name: string, color: string) => Promise<unknown>
   onMove: (fromId: string, toId: string, mode: MoveMode, collarIds: string[]) => void
+  onEdit: (mob: Mob, patch: MobPatch, add: string[], remove: string[]) => Promise<void>
 }
 
-export function MobsSection({ mobs, collars, paddocks, lanes, canAdd, onCreate, onMove }: Props) {
+export function MobsSection({ mobs, collars, paddocks, lanes, canAdd, onCreate, onMove, onEdit }: Props) {
   const nextColor = MOB_COLORS.find((c) => !mobs.some((m) => m.color === c)) ?? MOB_COLORS[0]
 
   return (
@@ -50,14 +52,16 @@ export function MobsSection({ mobs, collars, paddocks, lanes, canAdd, onCreate, 
             const where = n === 0 ? '' : from ? from.name : places.length === 1 ? 'Unassigned' : `Split across ${places.length} places`
             return (
               <li key={m.id} className="flex items-center gap-3 rounded-xl bg-white/60 px-2 py-1.5 text-sm">
-                <MobAvatar mob={m} />
-                <div className="min-w-0 leading-tight">
-                  <p className="truncate font-medium">{m.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {n} cow{n === 1 ? '' : 's'}
-                    {where && ` · ${where}`}
-                  </p>
-                </div>
+                <EditMobDialog mob={m} mobs={mobs} collars={collars} onSave={(patch, add, remove) => onEdit(m, patch, add, remove)}>
+                  <MobAvatar mob={m} />
+                  <div className="min-w-0 leading-tight">
+                    <p className="truncate font-medium">{m.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {n} cow{n === 1 ? '' : 's'}
+                      {where && ` · ${where}`}
+                    </p>
+                  </div>
+                </EditMobDialog>
                 <div className="ml-auto shrink-0">
                   {from ? (
                     <MoveHerdDialog
@@ -88,6 +92,27 @@ export function MobAvatar({ mob }: { mob: Mob }) {
     <span className="grid size-8 shrink-0 place-items-center rounded-full text-xs font-semibold text-white" style={{ backgroundColor: mob.color }}>
       {mobInitials(mob.name)}
     </span>
+  )
+}
+
+export function ColorSwatches({ value, onChange }: { value: string; onChange: (color: string) => void }) {
+  return (
+    <div role="radiogroup" className="flex flex-wrap gap-2">
+      {MOB_COLORS.map((c) => (
+        <button
+          key={c}
+          type="button"
+          role="radio"
+          aria-checked={value === c}
+          aria-label={c}
+          onClick={() => onChange(c)}
+          className={`grid size-8 cursor-pointer place-items-center rounded-full border-2 border-white shadow transition active:scale-95 ${value === c ? 'ring-2 ring-foreground/70' : ''}`}
+          style={{ backgroundColor: c }}
+        >
+          {value === c && <Check className="size-4 text-white" />}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -145,22 +170,7 @@ function AddMobDialog({ disabled, defaultColor, onCreate }: DialogProps) {
 
           <div className="grid gap-2">
             <Label>Colour</Label>
-            <div role="radiogroup" className="flex flex-wrap gap-2">
-              {MOB_COLORS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  role="radio"
-                  aria-checked={color === c}
-                  aria-label={c}
-                  onClick={() => setColor(c)}
-                  className={`grid size-8 cursor-pointer place-items-center rounded-full border-2 border-white shadow transition active:scale-95 ${color === c ? 'ring-2 ring-foreground/70' : ''}`}
-                  style={{ backgroundColor: c }}
-                >
-                  {color === c && <Check className="size-4 text-white" />}
-                </button>
-              ))}
-            </div>
+            <ColorSwatches value={color} onChange={setColor} />
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
