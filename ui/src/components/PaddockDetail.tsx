@@ -19,7 +19,7 @@ import type { Lane } from '@/useLanes'
 import type { Collar } from '@/useCollars'
 import type { Cow } from '@/useCows'
 import { AssignCollarsDialog } from './AssignCollarsDialog'
-import { MoveHerdDialog } from './MoveHerdDialog'
+import { MoveHerdDialog, type MoveMode } from './MoveHerdDialog'
 import { DrawLaneDialog } from './DrawLaneDialog'
 
 type Props = {
@@ -33,7 +33,7 @@ type Props = {
   onEditBoundary: () => void
   onDelete: () => Promise<void>
   onAssignCollars: (add: string[], remove: string[]) => Promise<void>
-  onMoveHerd: (toPaddockId: string, useSavedLane: boolean) => void
+  onMoveHerd: (toPaddockId: string, mode: MoveMode) => void
   onDrawLane: (toPaddockId: string) => void
   placingGate: boolean
   onStartGate: () => void
