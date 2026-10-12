@@ -14,7 +14,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { KINDS, type Paddock, type PaddockKind } from '@/usePaddocks'
+import { KINDS, type Gate, type Paddock, type PaddockKind } from '@/usePaddocks'
 import type { Lane } from '@/useLanes'
 import type { Collar } from '@/useCollars'
 import type { Cow } from '@/useCows'
@@ -35,9 +35,13 @@ type Props = {
   onAssignCollars: (add: string[], remove: string[]) => Promise<void>
   onMoveHerd: (toPaddockId: string, useSavedLane: boolean) => void
   onDrawLane: (toPaddockId: string) => void
+  placingGate: boolean
+  onStartGate: () => void
+  onCancelGate: () => void
+  onDeleteGate: (gate: Gate) => void
 }
 
-export function PaddockDetail({ paddock, collars, cows, paddocks, lanes, onRename, onChangeKind, onEditBoundary, onDelete, onAssignCollars, onMoveHerd, onDrawLane }: Props) {
+export function PaddockDetail({ paddock, collars, cows, paddocks, lanes, onRename, onChangeKind, onEditBoundary, onDelete, onAssignCollars, onMoveHerd, onDrawLane, placingGate, onStartGate, onCancelGate, onDeleteGate }: Props) {
   const collarCount = collars.filter((c) => c.paddock_id === paddock.id).length
   const version = paddock.fence_version ?? 0
   const here = new Set(collars.filter((c) => c.paddock_id === paddock.id).map((c) => c.id))
@@ -235,6 +239,40 @@ export function PaddockDetail({ paddock, collars, cows, paddocks, lanes, onRenam
           Lanes to {laneNames.length > 0 ? laneNames.join(', ') : 'nowhere yet'}
         </p>
         <DrawLaneDialog paddock={paddock} paddocks={paddocks} lanes={lanes} onPick={onDrawLane} />
+      </div>
+
+      <div className="grid gap-1.5 border-t border-black/5 pt-2">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            {placingGate ? 'Click on this paddock’s fence to place a gate' : (paddock.gates?.length ?? 0) === 0 ? 'No gates yet' : 'Gates'}
+          </p>
+          {placingGate ? (
+            <Button variant="outline" size="sm" className="cursor-pointer" onClick={onCancelGate}>
+              Cancel
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" className="cursor-pointer" disabled={(paddock.gates?.length ?? 0) >= 4} onClick={onStartGate}>
+              Add gate
+            </Button>
+          )}
+        </div>
+        {(paddock.gates?.length ?? 0) > 0 && (
+          <ul className="flex flex-wrap gap-1.5">
+            {paddock.gates!.map((g) => (
+              <li key={g.id} className="flex items-center gap-1 rounded-full bg-white/70 py-0.5 pr-1 pl-2.5 text-xs">
+                {g.name}
+                <button
+                  type="button"
+                  className="grid size-4 cursor-pointer place-items-center rounded-full text-muted-foreground hover:text-destructive"
+                  onClick={() => onDeleteGate(g)}
+                  aria-label={`Delete ${g.name}`}
+                >
+                  <X className="size-3" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="flex items-center justify-between gap-3 border-t border-black/5 pt-2">
