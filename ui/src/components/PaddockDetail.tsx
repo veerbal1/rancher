@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { KINDS, type Gate, type Paddock, type PaddockKind } from '@/usePaddocks'
+import type { Mob } from '@/useMobs'
 import type { Lane } from '@/useLanes'
 import type { Collar } from '@/useCollars'
 import type { Cow } from '@/useCows'
@@ -28,6 +29,7 @@ type Props = {
   cows: Cow[]
   paddocks: Paddock[]
   lanes: Lane[]
+  mobs: Mob[]
   onRename: (name: string) => Promise<void>
   onChangeKind: (kind: PaddockKind) => Promise<void>
   onEditBoundary: () => void
@@ -41,7 +43,7 @@ type Props = {
   onDeleteGate: (gate: Gate) => void
 }
 
-export function PaddockDetail({ paddock, collars, cows, paddocks, lanes, onRename, onChangeKind, onEditBoundary, onDelete, onAssignCollars, onMoveHerd, onDrawLane, placingGate, onStartGate, onCancelGate, onDeleteGate }: Props) {
+export function PaddockDetail({ paddock, collars, cows, paddocks, lanes, mobs, onRename, onChangeKind, onEditBoundary, onDelete, onAssignCollars, onMoveHerd, onDrawLane, placingGate, onStartGate, onCancelGate, onDeleteGate }: Props) {
   const collarCount = collars.filter((c) => c.paddock_id === paddock.id).length
   const version = paddock.fence_version ?? 0
   const here = new Set(collars.filter((c) => c.paddock_id === paddock.id).map((c) => c.id))
@@ -281,7 +283,7 @@ export function PaddockDetail({ paddock, collars, cows, paddocks, lanes, onRenam
         </p>
         <div className="flex items-center gap-1.5">
           <MoveHerdDialog paddock={paddock} paddocks={paddocks} cowCount={collarCount} lanes={lanes} onPick={onMoveHerd} />
-          <AssignCollarsDialog paddock={paddock} collars={collars} paddocks={paddocks} onSave={onAssignCollars} />
+          <AssignCollarsDialog paddock={paddock} collars={collars} paddocks={paddocks} mobs={mobs} onSave={onAssignCollars} />
         </div>
       </div>
     </section>
