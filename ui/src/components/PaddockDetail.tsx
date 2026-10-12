@@ -169,7 +169,7 @@ export function PaddockDetail({ paddock, collars, cows, paddocks, lanes, onRenam
               {paddock.area_ha} ha{kind === 'milking_shed' && ` · holds ${paddock.capacity} cows`}
             </p>
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className={`size-2 rounded-full ${synced ? 'bg-emerald-500' : 'animate-pulse bg-amber-500'}`} />
+              <span className={`size-2 rounded-full ${synced ? 'bg-primary' : 'animate-pulse bg-amber-500'}`} />
               Fence v{version}
               {reporting.length > 0 && ` · ${updated}/${reporting.length} updated`}
             </p>
