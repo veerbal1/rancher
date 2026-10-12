@@ -85,7 +85,7 @@ export function DrawPaddock({ active, onFinish }: Props) {
         paint={{
           'circle-radius': ['case', ['get', 'first'], 7, 4],
           'circle-color': '#ffffff',
-          'circle-stroke-color': '#2e9e5b',
+          'circle-stroke-color': '#294e3b',
           'circle-stroke-width': 2,
         }}
       />
