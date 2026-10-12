@@ -31,20 +31,15 @@ export function PaddockLabelsLayer({ selectedId }: { selectedId: string | null }
       source="paddocks"
       type="symbol"
       layout={{
-        'text-field': [
-          'case',
-          ['==', ['get', 'kind'], 'milking_shed'],
-          ['concat', ['get', 'name'], ' · ', ['to-string', ['get', 'capacity']], ' cows'],
-          ['concat', ['get', 'name'], ' · ', ['to-string', ['get', 'area_ha']], ' ha'],
-        ],
-        'text-font': ['Amazon Ember Bold,Noto Sans Bold'],
-        'text-size': 13,
+        'text-field': ['get', 'label'],
+        'text-font': ['Amazon Ember Regular,Noto Sans Regular'],
+        'text-size': 12,
         'text-max-width': 12,
       }}
       paint={{
-        'text-color': ['case', isSelected, '#ffd166', '#ffffff'],
-        'text-halo-color': 'rgba(0, 0, 0, 0.6)',
-        'text-halo-width': 1.5,
+        'text-color': ['case', isSelected, '#ffffff', 'rgba(255, 255, 255, 0.8)'],
+        'text-halo-color': 'rgba(0, 0, 0, 0.2)',
+        'text-halo-width': 1,
       }}
     />
   )
