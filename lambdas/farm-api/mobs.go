@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
 	"sort"
@@ -83,4 +85,55 @@ func listMobs(ctx context.Context, farmerID string) (events.APIGatewayV2HTTPResp
 	}
 	sort.Slice(mobs, func(i, j int) bool { return mobs[i].CreatedAt < mobs[j].CreatedAt })
 	return respond(http.StatusOK, mobs)
+}
+
+func addCollarsToMob(ctx context.Context, farmerID, mobID, body string) (events.APIGatewayV2HTTPResponse, error) {
+	var in struct {
+		CollarIDs []string `json:"collar_ids"`
+	}
+	if err := json.Unmarshal([]byte(body), &in); err != nil {
+		return respond(http.StatusBadRequest, errorBody("invalid JSON"))
+	}
+	ids := unique(in.CollarIDs)
+	if len(ids) == 0 || len(ids) > maxCollarsPerAssign {
+		return respond(http.StatusBadRequest, errorBody(fmt.Sprintf("collar_ids must have 1-%d ids", maxCollarsPerAssign)))
+	}
+
+	out, err := db.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(table),
+		Key: map[string]types.AttributeValue{
+			"PK": &types.AttributeValueMemberS{Value: "FARMER#" + farmerID},
+			"SK": &types.AttributeValueMemberS{Value: "MOB#" + mobID},
+		},
+		ProjectionExpression: aws.String("PK"),
+	})
+	if err != nil {
+		return events.APIGatewayV2HTTPResponse{}, err
+	}
+	if out.Item == nil {
+		return respond(http.StatusNotFound, errorBody("mob not found"))
+	}
+
+	updates := make([]types.TransactWriteItem, 0, len(ids))
+	for _, id := range ids {
+		updates = append(updates, types.TransactWriteItem{Update: &types.Update{
+			TableName: aws.String(table),
+			Key: map[string]types.AttributeValue{
+				"PK": &types.AttributeValueMemberS{Value: "FARMER#" + farmerID},
+				"SK": &types.AttributeValueMemberS{Value: "COLLAR#" + id},
+			},
+			UpdateExpression:          aws.String("SET mob_id = :m"),
+			ConditionExpression:       aws.String("attribute_exists(PK)"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{":m": &types.AttributeValueMemberS{Value: mobID}},
+		}})
+	}
+	_, err = db.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: updates})
+	var cancelled *types.TransactionCanceledException
+	if errors.As(err, &cancelled) {
+		return respond(http.StatusNotFound, errorBody("one or more collars not found"))
+	}
+	if err != nil {
+		return events.APIGatewayV2HTTPResponse{}, err
+	}
+	return respond(http.StatusOK, map[string]any{"collar_ids": ids, "mob_id": mobID})
 }
