@@ -116,6 +116,8 @@ func handle(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.API
 		return createMob(ctx, req.PathParameters["id"], req.Body)
 	case "GET /farmers/{id}/mobs":
 		return listMobs(ctx, req.PathParameters["id"])
+	case "POST /farmers/{id}/mobs/{mobId}/collars":
+		return addCollarsToMob(ctx, req.PathParameters["id"], req.PathParameters["mobId"], req.Body)
 	default:
 		return respond(http.StatusNotFound, errorBody("not found"))
 	}
