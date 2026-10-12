@@ -11,6 +11,7 @@ import { DrawPaddock } from './map/DrawPaddock'
 import { DrawRaceway } from './map/DrawRaceway'
 import { RacewaysLayer } from './map/RacewaysLayer'
 import { GatesLayer } from './map/GatesLayer'
+import { MobPills } from './map/MobPills'
 import { PlaceGate } from './map/PlaceGate'
 import { DraftPaddockLayer } from './map/DraftPaddockLayer'
 import { FarmBoundaryLayer } from './map/FarmBoundaryLayer'
@@ -39,6 +40,7 @@ import { PaddockDetail } from './components/PaddockDetail'
 import { CollarsSection } from './components/CollarsSection'
 import { MobsSection } from './components/MobsSection'
 import type { MoveMode } from './components/MoveHerdDialog'
+import type { MobPatch } from './components/EditMobDialog'
 import { RacewaysSection } from './components/RacewaysSection'
 import { SoundToggle } from './components/SoundToggle'
 import { LiveBadge } from './components/LiveBadge'
@@ -65,11 +67,11 @@ function App() {
   const { paddocks, error: paddocksError, createPaddock, updatePaddock, deletePaddock, addGate, deleteGate } = usePaddocks(selectedFarmerId)
   const [selectedPaddockId, setSelectedPaddockId] = useState<string | null>(null)
   const [selectedCollarId, setSelectedCollarId] = useState<string | null>(null)
-  const { collars, error: collarsError, buyCollars, assignCollars, deleteCollars, addToMob, moveLocally, forgetPaddock } = useCollars(selectedFarmerId)
+  const { collars, error: collarsError, buyCollars, assignCollars, deleteCollars, addToMob, removeFromMob, moveLocally, forgetPaddock } = useCollars(selectedFarmerId)
   const { shifts, error: shiftsError, startShift, turnBack } = useShifts(selectedFarmerId)
   const { lanes, error: lanesError, saveLane } = useLanes(selectedFarmerId)
   const { raceways, error: racewaysError, createRaceway, deleteRaceway } = useRaceways(selectedFarmerId)
-  const { mobs, error: mobsError, createMob } = useMobs(selectedFarmerId)
+  const { mobs, error: mobsError, createMob, updateMob } = useMobs(selectedFarmerId)
   const { sessions, schedule, error: milkingError, startMilking, stopMilking, saveSchedule } = useMilking(selectedFarmerId)
   const activeShifts = useActiveShifts(shifts, cows)
   const [soundOn, setSoundOn] = useState(false)
@@ -456,6 +458,13 @@ function App() {
     toast.success(`${collarsLabel(list)} unassigned`)
   }
 
+  const saveMob = async (mob: Mob, patch: MobPatch, add: string[], remove: string[]) => {
+    if (Object.keys(patch).length > 0) await updateMob(mob.id, patch)
+    if (add.length > 0) await addToMob(add, mob.id)
+    if (remove.length > 0) await removeFromMob(remove, mob.id)
+    toast.success(`${patch.name ?? mob.name} saved`, { description: `${add.length} added · ${remove.length} removed` })
+  }
+
   const addCollarsToMob = async (list: Collar[], mob: Mob) => {
     await addToMob(list.map((c) => c.id), mob.id)
     toast.success(`${collarsLabel(list)} added to ${mob.name}`)
@@ -493,6 +502,7 @@ function App() {
         {draftRing && <DraftPaddockLayer ring={draftRing} />}
         <LanesLayer lanes={liveLanes} />
         <CowsLayer cows={cows} colors={cowColors} selectedId={selectedCollarId} />
+        <MobPills cows={cows} collars={collars} mobs={mobs} />
         <ShiftLayer shifts={activeShifts} />
         <PaddockLabelsLayer selectedId={selectedPaddockId} />
         <DrawPaddock active={drawingPaddock} snapTo={snapPoints} onFinish={handlePaddockDrawn} />
@@ -599,6 +609,7 @@ function App() {
             key={selectedPaddock.id}
             paddock={selectedPaddock}
             collars={collars}
+            mobs={mobs}
             cows={cows}
             paddocks={paddocks}
             lanes={liveLanes}
@@ -641,7 +652,7 @@ function App() {
           onSaveDraft={saveRacewayDraft}
           onDelete={removeRaceway}
         />
-        <MobsSection mobs={mobs} collars={collars} paddocks={paddocks} lanes={liveLanes} canAdd={!!selectedFarmer} onCreate={createMob} onMove={beginMove} />
+        <MobsSection mobs={mobs} collars={collars} paddocks={paddocks} lanes={liveLanes} canAdd={!!selectedFarmer} onCreate={createMob} onMove={beginMove} onEdit={saveMob} />
         <CollarsSection collars={collars} cows={cows} paddocks={paddocks} mobs={mobs} canAdd={!!selectedFarmer} onAdd={addCollars} onDelete={removeCollars} onUnassign={unassignCollars} onAddToMob={addCollarsToMob} selectedId={selectedCollarId} onSelect={setSelectedCollarId} milking={runningMilking} />
       </MenuPanel>
 
