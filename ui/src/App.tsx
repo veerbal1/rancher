@@ -8,6 +8,8 @@ import { CowsLayer } from './map/CowsLayer'
 import { LanesLayer } from './map/LanesLayer'
 import { ShiftLayer } from './map/ShiftLayer'
 import { DrawPaddock } from './map/DrawPaddock'
+import { DrawRaceway } from './map/DrawRaceway'
+import { RacewaysLayer } from './map/RacewaysLayer'
 import { DraftPaddockLayer } from './map/DraftPaddockLayer'
 import { FarmBoundaryLayer } from './map/FarmBoundaryLayer'
 import { DrawPath } from './map/DrawPath'
@@ -22,6 +24,7 @@ import { KINDS, usePaddocks, type PaddockKind } from './usePaddocks'
 import { useCollars, type Collar } from './useCollars'
 import { useActiveShifts, useShifts, type Shift } from './useShifts'
 import { useLanes } from './useLanes'
+import { useRaceways, type Raceway } from './useRaceways'
 import { useMobs, type Mob } from './useMobs'
 import { useMilking, type MilkingSchedule } from './useMilking'
 import { useCueSound } from './useCueSound'
@@ -33,6 +36,7 @@ import { PaddocksSection } from './components/PaddocksSection'
 import { PaddockDetail } from './components/PaddockDetail'
 import { CollarsSection } from './components/CollarsSection'
 import { MobsSection } from './components/MobsSection'
+import { RacewaysSection } from './components/RacewaysSection'
 import { SoundToggle } from './components/SoundToggle'
 import { LiveBadge } from './components/LiveBadge'
 import { ShiftBanner } from './components/ShiftBanner'
@@ -51,12 +55,16 @@ function App() {
   const [draftRing, setDraftRing] = useState<LngLat[] | null>(null)
   const [drawingBoundary, setDrawingBoundary] = useState(false)
   const [boundaryDraft, setBoundaryDraft] = useState<LngLat[] | null>(null)
+  const [drawingRaceway, setDrawingRaceway] = useState(false)
+  const [racewayDraft, setRacewayDraft] = useState<LngLat[] | null>(null)
+  const [racewayWidth, setRacewayWidth] = useState(5)
   const { paddocks, error: paddocksError, createPaddock, updatePaddock, deletePaddock } = usePaddocks(selectedFarmerId)
   const [selectedPaddockId, setSelectedPaddockId] = useState<string | null>(null)
   const [selectedCollarId, setSelectedCollarId] = useState<string | null>(null)
   const { collars, error: collarsError, buyCollars, assignCollars, deleteCollars, addToMob, moveLocally, forgetPaddock } = useCollars(selectedFarmerId)
   const { shifts, error: shiftsError, startShift, turnBack } = useShifts(selectedFarmerId)
   const { lanes, error: lanesError, saveLane } = useLanes(selectedFarmerId)
+  const { raceways, error: racewaysError, createRaceway, deleteRaceway } = useRaceways(selectedFarmerId)
   const { mobs, error: mobsError, createMob } = useMobs(selectedFarmerId)
   const { sessions, schedule, error: milkingError, startMilking, stopMilking, saveSchedule } = useMilking(selectedFarmerId)
   const activeShifts = useActiveShifts(shifts, cows)
@@ -70,8 +78,30 @@ function App() {
   const selectedFarmer = farmers.find((f) => f.id === selectedFarmerId)
   const boundaryRing = boundaryDraft ?? selectedFarmer?.boundary?.coordinates[0]
   const snapPoints = useMemo(
-    () => [...paddocks.flatMap((p) => p.polygon.coordinates[0]), ...(selectedFarmer?.boundary?.coordinates[0] ?? [])],
-    [paddocks, selectedFarmer],
+    () => [
+      ...paddocks.flatMap((p) => p.polygon.coordinates[0]),
+      ...(selectedFarmer?.boundary?.coordinates[0] ?? []),
+      ...raceways.flatMap((r) => r.path.coordinates),
+    ],
+    [paddocks, selectedFarmer, raceways],
+  )
+  const snapLines = useMemo(() => {
+    const edges = (line: LngLat[]) => line.slice(1).map((p, i): [LngLat, LngLat] => [line[i], p])
+    return [
+      ...paddocks.flatMap((p) => edges(p.polygon.coordinates[0])),
+      ...edges(selectedFarmer?.boundary?.coordinates[0] ?? []),
+    ]
+  }, [paddocks, selectedFarmer])
+  const roadLines = useMemo(
+    () => raceways.flatMap((r) => r.path.coordinates.slice(1).map((p, i): [LngLat, LngLat] => [r.path.coordinates[i], p])),
+    [raceways],
+  )
+  const roads = useMemo(
+    () => [
+      ...raceways.map((r) => ({ id: r.id, path: r.path.coordinates, widthM: r.width_m })),
+      ...(racewayDraft ? [{ id: 'draft', path: racewayDraft, widthM: racewayWidth }] : []),
+    ],
+    [raceways, racewayDraft, racewayWidth],
   )
   const selectedPaddock = paddocks.find((p) => p.id === selectedPaddockId)
   const selectedCollar = collars.find((c) => c.id === selectedCollarId)
@@ -91,9 +121,9 @@ function App() {
     [reshape, paddocks],
   )
   const reshaping = paddocks.find((p) => p.id === reshape?.id)
-  const busyOnMap = drawingPaddock || drawingBoundary || !!pathDraft || !!reshape
+  const busyOnMap = drawingPaddock || drawingBoundary || drawingRaceway || !!pathDraft || !!reshape
 
-  const error = cowsError || farmersError || paddocksError || collarsError || shiftsError || lanesError || mobsError || milkingError
+  const error = cowsError || farmersError || paddocksError || collarsError || shiftsError || lanesError || racewaysError || mobsError || milkingError
   const shedSession = sessions.find((s) => s.status === 'running' && s.shed_id === selectedPaddock?.id)
   const runningMilking = sessions.find((s) => s.status === 'running')
   const manualShift = activeShifts.find((s) => !s.session_id)
@@ -117,6 +147,8 @@ function App() {
     setDrawingPaddock(false)
     setBoundaryDraft(null)
     setDrawingBoundary(false)
+    setRacewayDraft(null)
+    setDrawingRaceway(false)
   }
 
   const handleCreateFarmer = async (name: string, location: Location) => {
@@ -135,6 +167,8 @@ function App() {
     setDraftRing(null)
     setBoundaryDraft(null)
     setDrawingBoundary(false)
+    setRacewayDraft(null)
+    setDrawingRaceway(false)
     setDrawingPaddock(true)
   }
 
@@ -148,7 +182,36 @@ function App() {
     setDraftRing(null)
     setDrawingPaddock(false)
     setBoundaryDraft(null)
+    setRacewayDraft(null)
+    setDrawingRaceway(false)
     setDrawingBoundary(true)
+  }
+
+  const handleRacewayDrawn = useCallback((path: LngLat[]) => {
+    setRacewayDraft(path)
+    setDrawingRaceway(false)
+  }, [])
+
+  const startDrawingRaceway = () => {
+    setSelectedPaddockId(null)
+    setDraftRing(null)
+    setDrawingPaddock(false)
+    setBoundaryDraft(null)
+    setDrawingBoundary(false)
+    setRacewayDraft(null)
+    setDrawingRaceway(true)
+  }
+
+  const saveRacewayDraft = async () => {
+    if (!racewayDraft) return
+    await createRaceway(racewayDraft, racewayWidth)
+    setRacewayDraft(null)
+    toast.success('Raceway saved')
+  }
+
+  const removeRaceway = async (r: Raceway) => {
+    await deleteRaceway(r.id)
+    toast.success('Raceway deleted')
   }
 
   const saveBoundaryDraft = async () => {
@@ -395,6 +458,7 @@ function App() {
       >
         {boundaryRing && <FarmBoundaryLayer ring={boundaryRing} />}
         <PaddocksLayer paddocks={reshape ? paddocks.filter((p) => p.id !== reshape.id) : paddocks} selectedId={selectedPaddockId} />
+        <RacewaysLayer roads={roads} />
         {draftRing && <DraftPaddockLayer ring={draftRing} />}
         <LanesLayer lanes={liveLanes} />
         <CowsLayer cows={cows} colors={cowColors} selectedId={selectedCollarId} />
@@ -402,6 +466,7 @@ function App() {
         <PaddockLabelsLayer selectedId={selectedPaddockId} />
         <DrawPaddock active={drawingPaddock} snapTo={snapPoints} onFinish={handlePaddockDrawn} />
         <DrawPaddock active={drawingBoundary} snapTo={snapPoints} onFinish={handleBoundaryDrawn} />
+        <DrawRaceway active={drawingRaceway} snapPoints={snapPoints} snapLines={snapLines} roadLines={roadLines} onFinish={handleRacewayDrawn} />
         <DrawPath active={!!pathDraft} onFinish={handlePathDrawn} />
         {reshaping && <EditPaddock key={reshaping.id} initialRing={reshaping.polygon.coordinates[0]} onChange={handleReshape} />}
       </SatelliteMap>
@@ -528,6 +593,19 @@ function App() {
             onSaveSchedule={saveMilkingSchedule}
           />
         )}
+        <RacewaysSection
+          raceways={raceways}
+          canAdd={!!selectedFarmer}
+          drawing={drawingRaceway}
+          draft={racewayDraft}
+          width={racewayWidth}
+          onWidthChange={setRacewayWidth}
+          onStartDrawing={startDrawingRaceway}
+          onCancelDrawing={() => setDrawingRaceway(false)}
+          onDiscardDraft={() => setRacewayDraft(null)}
+          onSaveDraft={saveRacewayDraft}
+          onDelete={removeRaceway}
+        />
         <MobsSection mobs={mobs} collars={collars} paddocks={paddocks} lanes={liveLanes} canAdd={!!selectedFarmer} onCreate={createMob} onMove={beginMove} />
         <CollarsSection collars={collars} cows={cows} paddocks={paddocks} mobs={mobs} canAdd={!!selectedFarmer} onAdd={addCollars} onDelete={removeCollars} onUnassign={unassignCollars} onAddToMob={addCollarsToMob} selectedId={selectedCollarId} onSelect={setSelectedCollarId} milking={runningMilking} />
       </MenuPanel>
