@@ -107,6 +107,8 @@ resource "aws_apigatewayv2_route" "farm_api" {
     "POST /farmers/{id}/mobs",
     "GET /farmers/{id}/mobs",
     "POST /farmers/{id}/mobs/{mobId}/collars",
+    "POST /farmers/{id}/paddocks/{paddockId}/gates",
+    "DELETE /farmers/{id}/paddocks/{paddockId}/gates/{gateId}",
     "POST /farmers/{id}/raceways",
     "GET /farmers/{id}/raceways",
     "DELETE /farmers/{id}/raceways/{racewayId}",
