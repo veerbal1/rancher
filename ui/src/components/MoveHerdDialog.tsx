@@ -20,12 +20,13 @@ type Props = {
   paddocks: Paddock[]
   cowCount: number
   cowName?: string
+  mobName?: string
   disabled?: boolean
   lanes: Lane[]
   onPick: (toPaddockId: string, useSavedLane: boolean) => void
 }
 
-export function MoveHerdDialog({ paddock, paddocks, cowCount, cowName, disabled, lanes, onPick }: Props) {
+export function MoveHerdDialog({ paddock, paddocks, cowCount, cowName, mobName, disabled, lanes, onPick }: Props) {
   const [open, setOpen] = useState(false)
   const [toId, setToId] = useState<string | null>(null)
 
@@ -56,6 +57,8 @@ export function MoveHerdDialog({ paddock, paddocks, cowCount, cowName, disabled,
             <Route />
             Move to paddock
           </>
+        ) : mobName ? (
+          'Move'
         ) : (
           'Move herd'
         )}
@@ -64,10 +67,12 @@ export function MoveHerdDialog({ paddock, paddocks, cowCount, cowName, disabled,
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            Move {cowName ?? 'herd'} from {paddock.name}
+            Move {cowName ?? mobName ?? 'herd'} from {paddock.name}
           </DialogTitle>
           <DialogDescription>
-            {cowName
+            {mobName
+              ? `Pick where the ${cowCount} cow${cowCount === 1 ? '' : 's'} in ${mobName} should go, then draw the lane they walk along. The rest of the herd stays.`
+              : cowName
               ? `Pick where ${cowName} should go, then draw the lane. The collar guides the cow to the gate, down the lane and into the new paddock. The rest of the herd stays.`
               : `Pick where the ${cowCount} cow${cowCount === 1 ? '' : 's'} here should go, then draw the lane they walk along. Collars guide each cow to the gate, down the lane and into the new paddock.`}
           </DialogDescription>
