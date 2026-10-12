@@ -129,6 +129,10 @@ func handle(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.API
 		return listRaceways(ctx, req.PathParameters["id"])
 	case "DELETE /farmers/{id}/raceways/{racewayId}":
 		return deleteRaceway(ctx, req.PathParameters["id"], req.PathParameters["racewayId"])
+	case "PATCH /farmers/{id}/mobs/{mobId}":
+		return updateMob(ctx, req.PathParameters["id"], req.PathParameters["mobId"], req.Body)
+	case "DELETE /farmers/{id}/mobs/{mobId}/collars":
+		return removeCollarsFromMob(ctx, req.PathParameters["id"], req.PathParameters["mobId"], req.Body)
 	case "POST /farmers/{id}/mobs/{mobId}/collars":
 		return addCollarsToMob(ctx, req.PathParameters["id"], req.PathParameters["mobId"], req.Body)
 	default:
