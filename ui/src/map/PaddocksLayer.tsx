@@ -67,7 +67,7 @@ export function PaddocksLayer({ paddocks, selectedId }: Props) {
         id="paddocks-fill"
         type="fill"
         filter={['==', ['get', 'kind'], 'paddock']}
-        paint={{ 'fill-color': '#2e9e5b', 'fill-opacity': ['case', isSelected, 0.4, 0.15] }}
+        paint={{ 'fill-color': '#e3fdcb', 'fill-opacity': ['case', isSelected, 0.4, 0.15] }}
       />
       <Layer
         id="sheds-fill"
