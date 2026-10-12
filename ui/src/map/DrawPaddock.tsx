@@ -1,8 +1,10 @@
-import { useEffect } from 'react'
-import { useMap } from '@vis.gl/react-maplibre'
-import { TerraDraw, TerraDrawPolygonMode, ValidateNotSelfIntersecting } from 'terra-draw'
-import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Layer, Source, useMap } from '@vis.gl/react-maplibre'
+import type { MapMouseEvent } from 'maplibre-gl'
+import type { Feature, FeatureCollection, LineString, Point } from 'geojson'
 import type { LngLat } from './geo'
+
+const CLOSE_PX = 12
 
 type Props = {
   active: boolean
@@ -11,39 +13,82 @@ type Props = {
 
 export function DrawPaddock({ active, onFinish }: Props) {
   const { current: mapRef } = useMap()
+  const id = useId()
+  const [points, setPoints] = useState<LngLat[]>([])
+  const [cursor, setCursor] = useState<LngLat | null>(null)
+  const finish = useRef(onFinish)
 
   useEffect(() => {
-    if (!active || !mapRef) return
+    finish.current = onFinish
+  }, [onFinish])
 
-    const draw = new TerraDraw({
-      adapter: new TerraDrawMapLibreGLAdapter({ map: mapRef.getMap() }),
-      modes: [
-        new TerraDrawPolygonMode({
-          validation: (feature, { updateType }) =>
-            String(updateType) === 'provisional' ? { valid: true } : ValidateNotSelfIntersecting(feature),
-          styles: {
-            fillColor: '#2e9e5b',
-            fillOpacity: 0.25,
-            outlineColor: '#ffffff',
-            outlineWidth: 2,
-            closingPointColor: '#ffffff',
-            closingPointOutlineColor: '#2e9e5b',
-          },
-        }),
-      ],
-    })
+  useEffect(() => {
+    const map = mapRef?.getMap()
+    if (!active || !map) return
 
-    draw.on('finish', (id) => {
-      const feature = draw.getSnapshotFeature(id)
-      if (feature?.geometry.type === 'Polygon') {
-        onFinish(feature.geometry.coordinates[0] as LngLat[])
+    let ring: LngLat[] = []
+    const nearFirst = (e: MapMouseEvent) => {
+      if (ring.length < 3) return false
+      const first = map.project(ring[0])
+      return Math.hypot(first.x - e.point.x, first.y - e.point.y) <= CLOSE_PX
+    }
+
+    const onClick = (e: MapMouseEvent) => {
+      if (nearFirst(e)) {
+        const closed = [...ring, ring[0]]
+        ring = []
+        setPoints([])
+        setCursor(null)
+        finish.current(closed)
+        return
       }
-    })
+      ring = [...ring, [e.lngLat.lng, e.lngLat.lat]]
+      setPoints(ring)
+    }
+    const onMove = (e: MapMouseEvent) => setCursor(nearFirst(e) ? ring[0] : [e.lngLat.lng, e.lngLat.lat])
 
-    draw.start()
-    draw.setMode('polygon')
-    return () => draw.stop()
-  }, [active, mapRef, onFinish])
+    const canvas = map.getCanvas()
+    canvas.style.cursor = 'crosshair'
+    map.doubleClickZoom.disable()
+    map.on('click', onClick)
+    map.on('mousemove', onMove)
+    return () => {
+      map.off('click', onClick)
+      map.off('mousemove', onMove)
+      map.doubleClickZoom.enable()
+      canvas.style.cursor = ''
+      setPoints([])
+      setCursor(null)
+    }
+  }, [active, mapRef])
 
-  return null
+  const data = useMemo<FeatureCollection<LineString | Point>>(() => {
+    const line = cursor && points.length > 0 ? [...points, cursor] : points
+    const features: Feature<LineString | Point>[] = points.map((p, i) => ({
+      type: 'Feature',
+      properties: { first: i === 0 },
+      geometry: { type: 'Point', coordinates: p },
+    }))
+    if (line.length >= 2) features.unshift({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: line } })
+    return { type: 'FeatureCollection', features }
+  }, [points, cursor])
+
+  if (!active) return null
+
+  return (
+    <Source id={`draw-${id}`} type="geojson" data={data}>
+      <Layer id={`draw-line-${id}`} type="line" filter={['==', ['geometry-type'], 'LineString']} paint={{ 'line-color': '#ffffff', 'line-width': 2 }} />
+      <Layer
+        id={`draw-points-${id}`}
+        type="circle"
+        filter={['==', ['geometry-type'], 'Point']}
+        paint={{
+          'circle-radius': ['case', ['get', 'first'], 7, 4],
+          'circle-color': '#ffffff',
+          'circle-stroke-color': '#2e9e5b',
+          'circle-stroke-width': 2,
+        }}
+      />
+    </Source>
+  )
 }
