@@ -13,15 +13,23 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import type { Collar } from '@/useCollars'
+import type { Paddock } from '@/usePaddocks'
+import type { Lane } from '@/useLanes'
 import { MOB_COLORS, mobInitials, type Mob } from '@/useMobs'
+import { MoveHerdDialog } from './MoveHerdDialog'
 
 type Props = {
   mobs: Mob[]
+  collars: Collar[]
+  paddocks: Paddock[]
+  lanes: Lane[]
   canAdd: boolean
   onCreate: (name: string, color: string) => Promise<unknown>
+  onMove: (fromId: string, toId: string, useSavedLane: boolean, collarIds: string[]) => void
 }
 
-export function MobsSection({ mobs, canAdd, onCreate }: Props) {
+export function MobsSection({ mobs, collars, paddocks, lanes, canAdd, onCreate, onMove }: Props) {
   const nextColor = MOB_COLORS.find((c) => !mobs.some((m) => m.color === c)) ?? MOB_COLORS[0]
 
   return (
@@ -34,12 +42,41 @@ export function MobsSection({ mobs, canAdd, onCreate }: Props) {
       {canAdd && mobs.length === 0 && <p className="text-sm text-muted-foreground">No mobs yet.</p>}
       {mobs.length > 0 && (
         <ul className="grid gap-1">
-          {mobs.map((m) => (
-            <li key={m.id} className="flex items-center gap-3 rounded-xl bg-white/60 px-2 py-1.5 text-sm">
-              <MobAvatar mob={m} />
-              <span className="min-w-0 truncate font-medium">{m.name}</span>
-            </li>
-          ))}
+          {mobs.map((m) => {
+            const members = collars.filter((c) => c.mob_id === m.id)
+            const n = members.length
+            const places = [...new Set(members.map((c) => c.paddock_id))]
+            const from = places.length === 1 ? paddocks.find((p) => p.id === places[0]) : undefined
+            const where = n === 0 ? '' : from ? from.name : places.length === 1 ? 'Unassigned' : `Split across ${places.length} places`
+            return (
+              <li key={m.id} className="flex items-center gap-3 rounded-xl bg-white/60 px-2 py-1.5 text-sm">
+                <MobAvatar mob={m} />
+                <div className="min-w-0 leading-tight">
+                  <p className="truncate font-medium">{m.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {n} cow{n === 1 ? '' : 's'}
+                    {where && ` · ${where}`}
+                  </p>
+                </div>
+                <div className="ml-auto shrink-0">
+                  {from ? (
+                    <MoveHerdDialog
+                      paddock={from}
+                      paddocks={paddocks}
+                      cowCount={n}
+                      mobName={m.name}
+                      lanes={lanes}
+                      onPick={(toId, useSavedLane) => onMove(from.id, toId, useSavedLane, members.map((c) => c.id))}
+                    />
+                  ) : (
+                    <Button variant="outline" size="sm" disabled>
+                      Move
+                    </Button>
+                  )}
+                </div>
+              </li>
+            )
+          })}
         </ul>
       )}
     </section>
