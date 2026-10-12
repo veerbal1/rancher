@@ -137,3 +137,98 @@ func addCollarsToMob(ctx context.Context, farmerID, mobID, body string) (events.
 	}
 	return respond(http.StatusOK, map[string]any{"collar_ids": ids, "mob_id": mobID})
 }
+
+func updateMob(ctx context.Context, farmerID, mobID, body string) (events.APIGatewayV2HTTPResponse, error) {
+	var in struct {
+		Name  *string `json:"name"`
+		Color *string `json:"color"`
+	}
+	if err := json.Unmarshal([]byte(body), &in); err != nil {
+		return respond(http.StatusBadRequest, errorBody("invalid JSON"))
+	}
+	var sets []string
+	values := map[string]types.AttributeValue{}
+	names := map[string]string{}
+	if in.Name != nil {
+		name := strings.TrimSpace(*in.Name)
+		if name == "" || len(name) > 100 {
+			return respond(http.StatusBadRequest, errorBody("name must be 1-100 characters"))
+		}
+		sets = append(sets, "#n = :n")
+		names["#n"] = "name"
+		values[":n"] = &types.AttributeValueMemberS{Value: name}
+	}
+	if in.Color != nil {
+		if !hexColor.MatchString(*in.Color) {
+			return respond(http.StatusBadRequest, errorBody("color must look like #22c55e"))
+		}
+		sets = append(sets, "color = :c")
+		values[":c"] = &types.AttributeValueMemberS{Value: strings.ToLower(*in.Color)}
+	}
+	if len(sets) == 0 {
+		return respond(http.StatusBadRequest, errorBody("nothing to change"))
+	}
+	input := &dynamodb.UpdateItemInput{
+		TableName: aws.String(table),
+		Key: map[string]types.AttributeValue{
+			"PK": &types.AttributeValueMemberS{Value: "FARMER#" + farmerID},
+			"SK": &types.AttributeValueMemberS{Value: "MOB#" + mobID},
+		},
+		UpdateExpression:          aws.String("SET " + strings.Join(sets, ", ")),
+		ConditionExpression:       aws.String("attribute_exists(PK)"),
+		ExpressionAttributeValues: values,
+		ReturnValues:              types.ReturnValueAllNew,
+	}
+	if len(names) > 0 {
+		input.ExpressionAttributeNames = names
+	}
+	out, err := db.UpdateItem(ctx, input)
+	var notFound *types.ConditionalCheckFailedException
+	if errors.As(err, &notFound) {
+		return respond(http.StatusNotFound, errorBody("mob not found"))
+	}
+	if err != nil {
+		return events.APIGatewayV2HTTPResponse{}, err
+	}
+	var m Mob
+	if err := attributevalue.UnmarshalMap(out.Attributes, &m); err != nil {
+		return events.APIGatewayV2HTTPResponse{}, err
+	}
+	return respond(http.StatusOK, m)
+}
+
+func removeCollarsFromMob(ctx context.Context, farmerID, mobID, body string) (events.APIGatewayV2HTTPResponse, error) {
+	var in struct {
+		CollarIDs []string `json:"collar_ids"`
+	}
+	if err := json.Unmarshal([]byte(body), &in); err != nil {
+		return respond(http.StatusBadRequest, errorBody("invalid JSON"))
+	}
+	ids := unique(in.CollarIDs)
+	if len(ids) == 0 || len(ids) > maxCollarsPerAssign {
+		return respond(http.StatusBadRequest, errorBody(fmt.Sprintf("collar_ids must have 1-%d ids", maxCollarsPerAssign)))
+	}
+
+	updates := make([]types.TransactWriteItem, 0, len(ids))
+	for _, id := range ids {
+		updates = append(updates, types.TransactWriteItem{Update: &types.Update{
+			TableName: aws.String(table),
+			Key: map[string]types.AttributeValue{
+				"PK": &types.AttributeValueMemberS{Value: "FARMER#" + farmerID},
+				"SK": &types.AttributeValueMemberS{Value: "COLLAR#" + id},
+			},
+			UpdateExpression:          aws.String("REMOVE mob_id"),
+			ConditionExpression:       aws.String("mob_id = :m"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{":m": &types.AttributeValueMemberS{Value: mobID}},
+		}})
+	}
+	_, err := db.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: updates})
+	var cancelled *types.TransactionCanceledException
+	if errors.As(err, &cancelled) {
+		return respond(http.StatusConflict, errorBody("one or more collars are not in this mob any more, refresh and try again"))
+	}
+	if err != nil {
+		return events.APIGatewayV2HTTPResponse{}, err
+	}
+	return respond(http.StatusOK, map[string]any{"collar_ids": ids, "mob_id": nil})
+}
