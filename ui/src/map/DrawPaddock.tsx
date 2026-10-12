@@ -8,29 +8,44 @@ const CLOSE_PX = 12
 
 type Props = {
   active: boolean
+  snapTo?: LngLat[]
   onFinish: (ring: LngLat[]) => void
 }
 
-export function DrawPaddock({ active, onFinish }: Props) {
+export function DrawPaddock({ active, snapTo = [], onFinish }: Props) {
   const { current: mapRef } = useMap()
   const id = useId()
   const [points, setPoints] = useState<LngLat[]>([])
-  const [cursor, setCursor] = useState<LngLat | null>(null)
+  const [cursor, setCursor] = useState<{ at: LngLat; snapped: boolean } | null>(null)
   const finish = useRef(onFinish)
+  const targets = useRef(snapTo)
 
   useEffect(() => {
     finish.current = onFinish
-  }, [onFinish])
+    targets.current = snapTo
+  }, [onFinish, snapTo])
 
   useEffect(() => {
     const map = mapRef?.getMap()
     if (!active || !map) return
 
     let ring: LngLat[] = []
-    const nearFirst = (e: MapMouseEvent) => {
-      if (ring.length < 3) return false
-      const first = map.project(ring[0])
-      return Math.hypot(first.x - e.point.x, first.y - e.point.y) <= CLOSE_PX
+    const near = (p: LngLat, e: MapMouseEvent) => {
+      const at = map.project(p)
+      return Math.hypot(at.x - e.point.x, at.y - e.point.y)
+    }
+    const nearFirst = (e: MapMouseEvent) => ring.length >= 3 && near(ring[0], e) <= CLOSE_PX
+    const snap = (e: MapMouseEvent): { at: LngLat; snapped: boolean } => {
+      let best: LngLat | null = null
+      let bestPx = CLOSE_PX
+      for (const p of targets.current) {
+        const px = near(p, e)
+        if (px <= bestPx) {
+          best = p
+          bestPx = px
+        }
+      }
+      return best ? { at: best, snapped: true } : { at: [e.lngLat.lng, e.lngLat.lat], snapped: false }
     }
 
     const onClick = (e: MapMouseEvent) => {
@@ -42,10 +57,12 @@ export function DrawPaddock({ active, onFinish }: Props) {
         finish.current(closed)
         return
       }
-      ring = [...ring, [e.lngLat.lng, e.lngLat.lat]]
+      const at = snap(e).at
+      if (ring.some((p) => p[0] === at[0] && p[1] === at[1])) return
+      ring = [...ring, at]
       setPoints(ring)
     }
-    const onMove = (e: MapMouseEvent) => setCursor(nearFirst(e) ? ring[0] : [e.lngLat.lng, e.lngLat.lat])
+    const onMove = (e: MapMouseEvent) => setCursor(nearFirst(e) ? { at: ring[0], snapped: true } : snap(e))
 
     const canvas = map.getCanvas()
     canvas.style.cursor = 'crosshair'
@@ -63,12 +80,13 @@ export function DrawPaddock({ active, onFinish }: Props) {
   }, [active, mapRef])
 
   const data = useMemo<FeatureCollection<LineString | Point>>(() => {
-    const line = cursor && points.length > 0 ? [...points, cursor] : points
+    const line = cursor && points.length > 0 ? [...points, cursor.at] : points
     const features: Feature<LineString | Point>[] = points.map((p, i) => ({
       type: 'Feature',
       properties: { first: i === 0 },
       geometry: { type: 'Point', coordinates: p },
     }))
+    if (cursor?.snapped) features.push({ type: 'Feature', properties: { snap: true }, geometry: { type: 'Point', coordinates: cursor.at } })
     if (line.length >= 2) features.unshift({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: line } })
     return { type: 'FeatureCollection', features }
   }, [points, cursor])
@@ -83,8 +101,9 @@ export function DrawPaddock({ active, onFinish }: Props) {
         type="circle"
         filter={['==', ['geometry-type'], 'Point']}
         paint={{
-          'circle-radius': ['case', ['get', 'first'], 7, 4],
-          'circle-color': '#ffffff',
+          'circle-radius': ['case', ['has', 'snap'], 9, ['get', 'first'], 7, 4],
+          'circle-color': ['case', ['has', 'snap'], '#e3fdcb', '#ffffff'],
+          'circle-opacity': ['case', ['has', 'snap'], 0.6, 1],
           'circle-stroke-color': '#294e3b',
           'circle-stroke-width': 2,
         }}
