@@ -436,3 +436,21 @@ func TestTurnBackMidLaneWalksTheHerdHome(t *testing.T) {
 		}
 	}
 }
+
+func TestCowOnARoadAlongTheOldFenceKeepsGoing(t *testing.T) {
+	from, to := squareAt(0, 0, 100), squareAt(300, 0, 100)
+	path := pathM([2]float64{50, 90}, [2]float64{50, 101.5}, [2]float64{50, 100}, [2]float64{350, 100}, [2]float64{350, 90})
+	s := NewShift("B", from, to, path, 8, time.Time{})
+
+	cow := at(80, 99.5)
+	lng, lat, _ := s.Guide(cow.Lng, cow.Lat)
+	if target := (Point{Lng: lng, Lat: lat}); target.Lng <= cow.Lng {
+		t.Fatalf("a cow on the road past the gate, just inside the old fence, should keep heading east, got target %.1f m from the gate", metresApart(target, s.Gate))
+	}
+
+	inside := at(80, 50)
+	lng, lat, _ = s.Guide(inside.Lng, inside.Lat)
+	if d := metresApart(Point{Lng: lng, Lat: lat}, s.Gate); d > 0.5 {
+		t.Fatalf("a cow deep in the old paddock should head for the gate, target is %.1f m from it", d)
+	}
+}
