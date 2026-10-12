@@ -31,6 +31,7 @@ type Farmer struct {
 	ID        string    `json:"id"                 dynamodbav:"id"`
 	Name      string    `json:"name"               dynamodbav:"name"`
 	Location  *Location `json:"location,omitempty" dynamodbav:"location,omitempty"`
+	Boundary  *Polygon  `json:"boundary,omitempty" dynamodbav:"boundary,omitempty"`
 	CreatedAt string    `json:"created_at"         dynamodbav:"created_at"`
 }
 
@@ -72,6 +73,8 @@ func handle(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.API
 		return createFarmer(ctx, req.Body)
 	case "GET /farmers":
 		return listFarmers(ctx)
+	case "PUT /farmers/{id}/boundary":
+		return saveBoundary(ctx, req.PathParameters["id"], req.Body)
 	case "POST /farmers/{id}/paddocks":
 		return createPaddock(ctx, req.PathParameters["id"], req.Body)
 	case "GET /farmers/{id}/paddocks":
