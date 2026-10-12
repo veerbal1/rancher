@@ -16,8 +16,10 @@ import {
 import type { Collar } from '@/useCollars'
 import type { Cow } from '@/useCows'
 import type { Paddock } from '@/usePaddocks'
+import type { Mob } from '@/useMobs'
 import type { MilkingSession, SessionCow } from '@/useMilking'
 import { AddCollarsDialog } from './AddCollarsDialog'
+import { AddToMobDialog } from './AddToMobDialog'
 
 type CardStatus = { label: string; color: string; border: string; Icon: LucideIcon }
 
@@ -52,18 +54,21 @@ type Props = {
   collars: Collar[]
   cows: Cow[]
   paddocks: Paddock[]
+  mobs: Mob[]
   canAdd: boolean
   onAdd: (count: number) => Promise<void>
   onDelete: (collars: Collar[]) => Promise<void>
   onUnassign: (collars: Collar[]) => Promise<void>
+  onAddToMob: (collars: Collar[], mob: Mob) => Promise<void>
   selectedId: string | null
   onSelect: (id: string) => void
   milking?: MilkingSession
 }
 
-export function CollarsSection({ collars, cows, paddocks, canAdd, onAdd, onDelete, onUnassign, selectedId, onSelect, milking }: Props) {
+export function CollarsSection({ collars, cows, paddocks, mobs, canAdd, onAdd, onDelete, onUnassign, onAddToMob, selectedId, onSelect, milking }: Props) {
   const paddockName = (id: string | null) => paddocks.find((p) => p.id === id)?.name
   const cowOf = (c: Collar) => cows.find((w) => w.collar_id === c.id)
+  const mobOf = (c: Collar) => mobs.find((m) => m.id === c.mob_id)
   const syncing = (c: Collar) => {
     const cow = cowOf(c)
     const paddock = paddocks.find((p) => p.id === c.paddock_id)
@@ -168,6 +173,7 @@ export function CollarsSection({ collars, cows, paddocks, canAdd, onAdd, onDelet
         <ul className="grid grid-cols-2 gap-1.5">
           {collars.map((c) => {
             const cow = cowOf(c)
+            const mob = mobOf(c)
             const status = cardStatus(cow, milking?.cows.find((m) => m.collar_id === c.id), milking?.milking_secs ?? 0)
             return (
               <li
@@ -197,7 +203,10 @@ export function CollarsSection({ collars, cows, paddocks, canAdd, onAdd, onDelet
                 )}
                 <div className="px-2 py-1.5 leading-tight">
                   <div className="flex items-center justify-between gap-1">
-                    <p className="min-w-0 truncate font-medium">{c.name}</p>
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      {mob && <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: mob.color }} title={mob.name} />}
+                      <p className="min-w-0 truncate font-medium">{c.name}</p>
+                    </div>
                     <BatteryLevel level={cow?.battery} />
                   </div>
                   <p className="truncate text-xs text-muted-foreground">
@@ -235,6 +244,15 @@ export function CollarsSection({ collars, cows, paddocks, canAdd, onAdd, onDelet
 
       {selecting && chosen.length > 0 && (
         <div className="sticky bottom-0 flex items-center gap-2 rounded-xl border border-white/60 bg-white/90 p-2 shadow-lg backdrop-blur-xl">
+          <AddToMobDialog
+            mobs={mobs}
+            count={chosen.length}
+            disabled={unassigning}
+            onPick={async (mob) => {
+              await onAddToMob(chosen, mob)
+              stopSelecting()
+            }}
+          />
           <Button
             variant="outline"
             size="sm"
