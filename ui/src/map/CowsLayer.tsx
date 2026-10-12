@@ -43,7 +43,7 @@ function rippleAt(now: number) {
     return ['match', ['get', 'level'], 'audio', at('audio'), 'vibration', at('vibration'), at('pulse')]
   }
   const grow = byLevel((p) => 1 + 1.5 * p)
-  const radius: ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], 14, ['*', 3, grow], 17, ['*', 6, grow], 20, ['*', 12, grow]]
+  const radius: ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], 14, ['*', 2.25, grow], 17, ['*', 4.5, grow], 20, ['*', 9, grow]]
   return { radius, opacity: byLevel((p) => 1 - p) }
 }
 
@@ -87,7 +87,7 @@ export function CowsLayer({ cows, colors, selectedId }: { cows: Cow[]; colors: R
           id="cow-rings"
           type="circle"
           paint={{
-            'circle-radius': ['interpolate', ['linear'], ['zoom'], 14, 3, 17, 6, 20, 10],
+            'circle-radius': ['interpolate', ['linear'], ['zoom'], 14, 2.25, 17, 4.5, 20, 7.5],
             'circle-color': fillColor,
             'circle-stroke-width': ['case', ['==', ['get', 'collar_id'], selectedId ?? ''], 3, ['!=', ['get', 'state'], 'inside'], 2.5, 1.5],
             'circle-stroke-color': ringColor,
