@@ -24,6 +24,17 @@ const stateColor: ExpressionSpecification = [
   '#888',
 ]
 
+const fillColor: ExpressionSpecification = ['coalesce', ['get', 'color'], stateColor]
+
+const ringColor: ExpressionSpecification = [
+  'match',
+  ['get', 'state'],
+  'warning', COLORS.warning,
+  'breached', COLORS.breached,
+  'moving', COLORS.moving,
+  '#ffffff',
+]
+
 const cueColor: ExpressionSpecification = ['match', ['get', 'level'], 'audio', '#facc15', 'vibration', '#f97316', '#ef4444']
 
 function rippleAt(now: number) {
@@ -36,7 +47,7 @@ function rippleAt(now: number) {
   return { radius, opacity: byLevel((p) => 1 - p) }
 }
 
-export function CowsLayer({ cows, selectedId }: { cows: Cow[]; selectedId: string | null }) {
+export function CowsLayer({ cows, colors, selectedId }: { cows: Cow[]; colors: Record<string, string>; selectedId: string | null }) {
   const { current: mapRef } = useMap()
   const cued = cows.some((c) => c.level !== 'none')
 
@@ -62,11 +73,11 @@ export function CowsLayer({ cows, selectedId }: { cows: Cow[]; selectedId: strin
       type: 'FeatureCollection',
       features: cows.map((c) => ({
         type: 'Feature',
-        properties: { collar_id: c.collar_id, state: c.state, level: c.level },
+        properties: { collar_id: c.collar_id, state: c.state, level: c.level, color: colors[c.collar_id] },
         geometry: { type: 'Point', coordinates: [c.lng, c.lat] },
       })),
     }),
-    [cows],
+    [cows, colors],
   )
 
   return (
@@ -77,9 +88,9 @@ export function CowsLayer({ cows, selectedId }: { cows: Cow[]; selectedId: strin
           type="circle"
           paint={{
             'circle-radius': ['interpolate', ['linear'], ['zoom'], 14, 3, 17, 6, 20, 10],
-            'circle-color': stateColor,
-            'circle-stroke-width': ['case', ['==', ['get', 'collar_id'], selectedId ?? ''], 3, 1.5],
-            'circle-stroke-color': '#ffffff',
+            'circle-color': fillColor,
+            'circle-stroke-width': ['case', ['==', ['get', 'collar_id'], selectedId ?? ''], 3, ['!=', ['get', 'state'], 'inside'], 2.5, 1.5],
+            'circle-stroke-color': ringColor,
           }}
         />
         <Layer
