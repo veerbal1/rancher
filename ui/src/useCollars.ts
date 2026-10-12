@@ -101,6 +101,24 @@ export function useCollars(farmerId: string | null) {
     }
   }
 
+  const removeFromMob = async (collarIds: string[], mobId: string) => {
+    if (!farmerId) throw new Error('no farmer selected')
+    for (let i = 0; i < collarIds.length; i += MAX_PER_ASSIGN) {
+      const chunk = collarIds.slice(i, i + MAX_PER_ASSIGN)
+      const res = await fetch(`${FARM_API_URL}/farmers/${encodeURIComponent(farmerId)}/mobs/${encodeURIComponent(mobId)}/collars`, {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ collar_ids: chunk }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error ?? `HTTP ${res.status}`)
+      }
+      const ids = new Set(chunk)
+      setCollars((prev) => prev.map((c) => (ids.has(c.id) ? { ...c, mob_id: null } : c)))
+    }
+  }
+
   const moveLocally = (collarIds: string[], paddockId: string) => {
     const ids = new Set(collarIds)
     setCollars((prev) => prev.map((c) => (ids.has(c.id) ? { ...c, paddock_id: paddockId } : c)))
@@ -110,5 +128,5 @@ export function useCollars(farmerId: string | null) {
     setCollars((prev) => prev.map((c) => (c.paddock_id === paddockId ? { ...c, paddock_id: null } : c)))
   }
 
-  return { collars, error, buyCollars, assignCollars, deleteCollars, addToMob, moveLocally, forgetPaddock }
+  return { collars, error, buyCollars, assignCollars, deleteCollars, addToMob, removeFromMob, moveLocally, forgetPaddock }
 }
