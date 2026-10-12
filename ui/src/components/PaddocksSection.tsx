@@ -81,7 +81,7 @@ export function PaddocksSection({
 
       {drawing && (
         <p className="text-sm text-muted-foreground">
-          Click on the map to add corners. Edges can't cross. Click the first corner, double-click, or press Enter to finish.
+          Click on the map to add corners. Edges can't cross. Click the first corner to finish.
         </p>
       )}
       {hasDraft && <p className="text-sm text-muted-foreground">New paddock drawn.</p>}
