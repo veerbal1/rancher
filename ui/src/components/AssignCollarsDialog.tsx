@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogClose,
@@ -13,15 +12,18 @@ import {
 } from '@/components/ui/dialog'
 import type { Collar } from '@/useCollars'
 import type { Paddock } from '@/usePaddocks'
+import type { Mob } from '@/useMobs'
+import { CowPicker } from './CowPicker'
 
 type Props = {
   paddock: Paddock
   collars: Collar[]
   paddocks: Paddock[]
+  mobs: Mob[]
   onSave: (add: string[], remove: string[]) => Promise<void>
 }
 
-export function AssignCollarsDialog({ paddock, collars, paddocks, onSave }: Props) {
+export function AssignCollarsDialog({ paddock, collars, paddocks, mobs, onSave }: Props) {
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
@@ -37,21 +39,6 @@ export function AssignCollarsDialog({ paddock, collars, paddocks, onSave }: Prop
     setOpen(next)
     if (next) setSelected(new Set(collars.filter(isHere).map((c) => c.id)))
     else setError('')
-  }
-
-  const toggle = (id: string, checked: boolean) => {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (checked) next.add(id)
-      else next.delete(id)
-      return next
-    })
-  }
-
-  const allSelected = collars.length > 0 && selected.size === collars.length
-
-  const toggleAll = (checked: boolean) => {
-    setSelected(checked ? new Set(collars.map((c) => c.id)) : new Set())
   }
 
   const save = async () => {
@@ -83,25 +70,13 @@ export function AssignCollarsDialog({ paddock, collars, paddocks, onSave }: Prop
           </DialogDescription>
         </DialogHeader>
 
-        <label className="flex cursor-pointer items-center gap-3 rounded-md border-b px-2 py-1.5 hover:bg-muted">
-          <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
-          <span className="flex-1 text-sm font-medium">Select all</span>
-          <span className="text-xs text-muted-foreground">{collars.length} collars</span>
-        </label>
-
-        <ul className="grid max-h-72 gap-0.5 overflow-y-auto">
-          {collars.map((c) => (
-            <li key={c.id}>
-              <label className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted">
-                <Checkbox checked={selected.has(c.id)} onCheckedChange={(checked) => toggle(c.id, checked)} />
-                <span className="flex-1 text-sm">{c.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  {isHere(c) ? 'Here' : (paddockName(c.paddock_id) ?? 'Unassigned')}
-                </span>
-              </label>
-            </li>
-          ))}
-        </ul>
+        <CowPicker
+          collars={collars}
+          mobs={mobs}
+          selected={selected}
+          onChange={setSelected}
+          describe={(c) => (isHere(c) ? 'here' : (paddockName(c.paddock_id) ?? 'unassigned'))}
+        />
 
         {error && <p className="text-sm text-destructive">{error}</p>}
 
