@@ -112,12 +112,23 @@ func createShift(ctx context.Context, farmerID, body string) (events.APIGatewayV
 		Path          LineString `json:"path"`
 		WidthM        float64    `json:"width_m"`
 		CollarIDs     []string   `json:"collar_ids"`
+		Route         string     `json:"route"`
 	}
 	if err := json.Unmarshal([]byte(body), &in); err != nil {
 		return respond(http.StatusBadRequest, errorBody("invalid JSON"))
 	}
 	if in.FromPaddockID == "" || in.ToPaddockID == "" || in.FromPaddockID == in.ToPaddockID {
 		return respond(http.StatusBadRequest, errorBody("from_paddock_id and to_paddock_id must be two different paddocks"))
+	}
+	if in.Route == "raceways" {
+		path, width, msg, err := racewayRoute(ctx, farmerID, in.FromPaddockID, in.ToPaddockID)
+		if err != nil {
+			return events.APIGatewayV2HTTPResponse{}, err
+		}
+		if msg != "" {
+			return respond(http.StatusBadRequest, errorBody(msg))
+		}
+		in.Path, in.WidthM = path, width
 	}
 	if len(in.Path.Coordinates) == 0 {
 		lane, err := findLane(ctx, farmerID, in.FromPaddockID, in.ToPaddockID)
