@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
+import type { LngLat } from './map/geo'
 
 export type Location = { lng: number; lat: number }
 
-export type Farmer = { id: string; name: string; location?: Location; created_at: string }
+export type Farmer = { id: string; name: string; location?: Location; boundary?: { type: 'Polygon'; coordinates: LngLat[][] }; created_at: string }
 
 const FARM_API_URL = import.meta.env.VITE_FARM_API_URL
 
@@ -31,5 +32,17 @@ export function useFarmers() {
     return body
   }
 
-  return { farmers, error, createFarmer }
+  const saveBoundary = async (farmerId: string, ring: LngLat[]): Promise<Farmer> => {
+    const res = await fetch(`${FARM_API_URL}/farmers/${encodeURIComponent(farmerId)}/boundary`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ boundary: { type: 'Polygon', coordinates: [ring] } }),
+    })
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`)
+    setFarmers((prev) => prev.map((f) => (f.id === body.id ? body : f)))
+    return body
+  }
+
+  return { farmers, error, createFarmer, saveBoundary }
 }
