@@ -38,6 +38,7 @@ import { PaddocksSection } from './components/PaddocksSection'
 import { PaddockDetail } from './components/PaddockDetail'
 import { CollarsSection } from './components/CollarsSection'
 import { MobsSection } from './components/MobsSection'
+import type { MoveMode } from './components/MoveHerdDialog'
 import { RacewaysSection } from './components/RacewaysSection'
 import { SoundToggle } from './components/SoundToggle'
 import { LiveBadge } from './components/LiveBadge'
@@ -325,9 +326,9 @@ function App() {
 
   const paddockName = (id: string) => paddocks.find((p) => p.id === id)?.name ?? 'the paddock'
 
-  const sendMove = async (fromId: string, toId: string, path: LngLat[], collarIds?: string[]) => {
+  const sendMove = async (fromId: string, toId: string, path: LngLat[], collarIds?: string[], route?: 'raceways') => {
     try {
-      const shift = await startShift(fromId, toId, path, collarIds)
+      const shift = await startShift(fromId, toId, path, collarIds, route)
       moveLocally(shift.collar_ids, toId)
       const n = shift.collar_ids.length
       toast.success(`Moving ${n} cow${n === 1 ? '' : 's'} to ${paddockName(toId)}`, { description: 'Starts in 10 seconds' })
@@ -336,24 +337,24 @@ function App() {
     }
   }
 
-  const beginMove = (fromId: string, toId: string, useSavedLane: boolean, collarIds?: string[]) => {
+  const beginMove = (fromId: string, toId: string, mode: MoveMode, collarIds?: string[]) => {
     setDrawingPaddock(false)
     setDraftRing(null)
-    if (useSavedLane) {
-      void sendMove(fromId, toId, [], collarIds)
+    if (mode !== 'draw') {
+      void sendMove(fromId, toId, [], collarIds, mode === 'raceways' ? 'raceways' : undefined)
       return
     }
     setPathDraft({ fromId, toId, collarIds })
   }
 
-  const startDrawingPath = (toPaddockId: string, useSavedLane: boolean) => {
+  const startDrawingPath = (toPaddockId: string, mode: MoveMode) => {
     if (!selectedPaddock) return
-    beginMove(selectedPaddock.id, toPaddockId, useSavedLane)
+    beginMove(selectedPaddock.id, toPaddockId, mode)
   }
 
-  const startMovingCow = (toPaddockId: string, useSavedLane: boolean) => {
+  const startMovingCow = (toPaddockId: string, mode: MoveMode) => {
     if (!selectedCollar?.paddock_id) return
-    beginMove(selectedCollar.paddock_id, toPaddockId, useSavedLane, [selectedCollar.id])
+    beginMove(selectedCollar.paddock_id, toPaddockId, mode, [selectedCollar.id])
   }
 
   const startDrawingLane = (toPaddockId: string) => {
