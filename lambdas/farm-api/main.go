@@ -112,6 +112,10 @@ func handle(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.API
 		return deleteCollars(ctx, req.PathParameters["id"], req.Body)
 	case "DELETE /farmers/{id}/collars/{collarId}":
 		return deleteCollar(ctx, req.PathParameters["id"], req.PathParameters["collarId"])
+	case "POST /farmers/{id}/mobs":
+		return createMob(ctx, req.PathParameters["id"], req.Body)
+	case "GET /farmers/{id}/mobs":
+		return listMobs(ctx, req.PathParameters["id"])
 	default:
 		return respond(http.StatusNotFound, errorBody("not found"))
 	}
