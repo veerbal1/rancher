@@ -79,6 +79,14 @@ func createRaceway(ctx context.Context, farmerID, body string) (events.APIGatewa
 }
 
 func listRaceways(ctx context.Context, farmerID string) (events.APIGatewayV2HTTPResponse, error) {
+	raceways, err := queryRaceways(ctx, farmerID)
+	if err != nil {
+		return events.APIGatewayV2HTTPResponse{}, err
+	}
+	return respond(http.StatusOK, raceways)
+}
+
+func queryRaceways(ctx context.Context, farmerID string) ([]Raceway, error) {
 	raceways := []Raceway{}
 	pages := dynamodb.NewQueryPaginator(db, &dynamodb.QueryInput{
 		TableName:              aws.String(table),
@@ -91,16 +99,16 @@ func listRaceways(ctx context.Context, farmerID string) (events.APIGatewayV2HTTP
 	for pages.HasMorePages() {
 		page, err := pages.NextPage(ctx)
 		if err != nil {
-			return events.APIGatewayV2HTTPResponse{}, err
+			return nil, err
 		}
 		var batch []Raceway
 		if err := attributevalue.UnmarshalListOfMaps(page.Items, &batch); err != nil {
-			return events.APIGatewayV2HTTPResponse{}, err
+			return nil, err
 		}
 		raceways = append(raceways, batch...)
 	}
 	sort.Slice(raceways, func(i, j int) bool { return raceways[i].CreatedAt < raceways[j].CreatedAt })
-	return respond(http.StatusOK, raceways)
+	return raceways, nil
 }
 
 func deleteRaceway(ctx context.Context, farmerID, racewayID string) (events.APIGatewayV2HTTPResponse, error) {
