@@ -69,6 +69,10 @@ function App() {
 
   const selectedFarmer = farmers.find((f) => f.id === selectedFarmerId)
   const boundaryRing = boundaryDraft ?? selectedFarmer?.boundary?.coordinates[0]
+  const snapPoints = useMemo(
+    () => [...paddocks.flatMap((p) => p.polygon.coordinates[0]), ...(selectedFarmer?.boundary?.coordinates[0] ?? [])],
+    [paddocks, selectedFarmer],
+  )
   const selectedPaddock = paddocks.find((p) => p.id === selectedPaddockId)
   const selectedCollar = collars.find((c) => c.id === selectedCollarId)
   const closeCowPanel = useCallback(() => setSelectedCollarId(null), [])
@@ -396,8 +400,8 @@ function App() {
         <CowsLayer cows={cows} colors={cowColors} selectedId={selectedCollarId} />
         <ShiftLayer shifts={activeShifts} />
         <PaddockLabelsLayer selectedId={selectedPaddockId} />
-        <DrawPaddock active={drawingPaddock} onFinish={handlePaddockDrawn} />
-        <DrawPaddock active={drawingBoundary} onFinish={handleBoundaryDrawn} />
+        <DrawPaddock active={drawingPaddock} snapTo={snapPoints} onFinish={handlePaddockDrawn} />
+        <DrawPaddock active={drawingBoundary} snapTo={snapPoints} onFinish={handleBoundaryDrawn} />
         <DrawPath active={!!pathDraft} onFinish={handlePathDrawn} />
         {reshaping && <EditPaddock key={reshaping.id} initialRing={reshaping.polygon.coordinates[0]} onChange={handleReshape} />}
       </SatelliteMap>
