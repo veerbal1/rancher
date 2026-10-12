@@ -53,17 +53,19 @@ func NewShift(toID string, from, to Polygon, path []Point, widthM float64, start
 }
 
 func (s *Shift) Guide(lng, lat float64) (targetLng, targetLat, driftM float64) {
+	driftM, alongM, _ := s.Lane.nearest(lng, lat)
+	onRoute := alongM > s.gateM+gateNearM && driftM <= 2*s.Lane.HalfWidthM
 	switch {
+	case s.To.Contains(lng, lat):
+		targetLng, targetLat = s.To.Center()
+		return targetLng, targetLat, 0
+	case onRoute:
 	case s.From.Contains(lng, lat) && metresBetween(lng, lat, s.Gate) > gateNearM:
 		return s.Gate.Lng, s.Gate.Lat, 0
 	case s.From.Contains(lng, lat):
 		through := s.Lane.PointAt(s.gateM + lookaheadM)
 		return through.Lng, through.Lat, 0
-	case s.To.Contains(lng, lat):
-		targetLng, targetLat = s.To.Center()
-		return targetLng, targetLat, 0
 	}
-	driftM, alongM, _ := s.Lane.nearest(lng, lat)
 	ahead := s.Lane.PointAt(alongM + lookaheadM)
 	return ahead.Lng, ahead.Lat, driftM
 }
