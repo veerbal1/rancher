@@ -42,6 +42,7 @@ type Paddock struct {
 	Kind           string  `json:"kind"       dynamodbav:"kind"`
 	Capacity       int     `json:"capacity,omitempty" dynamodbav:"capacity,omitempty"`
 	RunningSession string  `json:"running_session,omitempty" dynamodbav:"running_session,omitempty"`
+	Gates          []Gate  `json:"gates,omitempty" dynamodbav:"gates,omitempty"`
 	CreatedAt      string  `json:"created_at" dynamodbav:"created_at"`
 }
 
