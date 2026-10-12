@@ -195,8 +195,8 @@ export function CollarsSection({ collars, cows, paddocks, mobs, canAdd, onAdd, o
                 </div>
                 {c.paddock_id ? (
                   <span className="absolute top-2 left-2 flex size-2.5" title="Live">
-                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex size-2.5 rounded-full border border-white bg-emerald-500" />
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-40" />
+                    <span className="relative inline-flex size-2.5 rounded-full border border-white bg-primary" />
                   </span>
                 ) : (
                   <span className="absolute top-2 left-2 size-2.5 rounded-full border border-white bg-zinc-400" title="Inactive" />
