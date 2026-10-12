@@ -84,6 +84,7 @@ resource "aws_apigatewayv2_route" "farm_api" {
   for_each = toset([
     "POST /farmers",
     "GET /farmers",
+    "PUT /farmers/{id}/boundary",
     "POST /farmers/{id}/paddocks",
     "GET /farmers/{id}/paddocks",
     "PATCH /farmers/{id}/paddocks/{paddockId}",
