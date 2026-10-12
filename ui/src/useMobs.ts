@@ -54,5 +54,18 @@ export function useMobs(farmerId: string | null) {
     return body
   }
 
-  return { mobs, error, createMob }
+  const updateMob = async (id: string, patch: { name?: string; color?: string }): Promise<Mob> => {
+    if (!farmerId) throw new Error('no farmer selected')
+    const res = await fetch(`${FARM_API_URL}/farmers/${encodeURIComponent(farmerId)}/mobs/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(patch),
+    })
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`)
+    setMobs((prev) => prev.map((m) => (m.id === id ? body : m)))
+    return body
+  }
+
+  return { mobs, error, createMob, updateMob }
 }
