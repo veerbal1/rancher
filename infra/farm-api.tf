@@ -107,6 +107,9 @@ resource "aws_apigatewayv2_route" "farm_api" {
     "POST /farmers/{id}/mobs",
     "GET /farmers/{id}/mobs",
     "POST /farmers/{id}/mobs/{mobId}/collars",
+    "POST /farmers/{id}/raceways",
+    "GET /farmers/{id}/raceways",
+    "DELETE /farmers/{id}/raceways/{racewayId}",
   ])
 
   api_id    = aws_apigatewayv2_api.farm.id
